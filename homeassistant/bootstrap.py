@@ -123,7 +123,6 @@ with contextlib.suppress(ImportError):
 
 if TYPE_CHECKING:
     from .runner import RuntimeConfig
-
 _LOGGER = logging.getLogger(__name__)
 
 SETUP_ORDER_SORT_KEY = partial(contains, BASE_PLATFORMS)

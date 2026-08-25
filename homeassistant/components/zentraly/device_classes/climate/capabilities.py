@@ -1,0 +1,16 @@
+"""Capability definitions for Zentraly climate devices."""
+
+from enum import Enum
+
+
+class ClimateCapability(Enum):
+    """Supported Zentraly climate capabilities."""
+
+    LOCAL_TEMPERATURE = "local_temperature"
+    TARGET_TEMPERATURE = "target_temperature"
+    OPERATION_MODE = "operation_mode"
+    TEMPERATURE_OFFSET = "temperature_offset"
+    AWAY_TEMPERATURE = "away_temperature"
+    LOCK = "lock"
+    HEAT_DEMAND = "heat_demand"
+    HUMIDITY = "humidity"

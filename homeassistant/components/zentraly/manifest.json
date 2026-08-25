@@ -1,0 +1,11 @@
+{
+  "domain": "zentraly",
+  "name": "Zentraly",
+  "codeowners": ["@diazmanuel"],
+  "config_flow": true,
+  "documentation": "https://www.home-assistant.io/integrations/zentraly",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "quality_scale": "bronze",
+  "zeroconf": ["_zentraly._tcp.local."]
+}

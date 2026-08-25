@@ -1,0 +1,87 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "unsupported_device": "This Zentraly device is not supported for automatic setup.",
+      "zeroconf_only": "Zentraly devices can only be added after being discovered on the local network."
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the device.",
+      "invalid_auth": "Invalid password.",
+      "unknown": "Unexpected error."
+    },
+    "flow_title": "{name}",
+    "step": {
+      "auth": {
+        "data": {
+          "password": "Password"
+        },
+        "data_description": {
+          "password": "The password configured on the Zentraly device."
+        },
+        "description": "Enter the password for the Zentraly device.",
+        "title": "Authentication"
+      }
+    }
+  },
+  "config_subentries": {
+    "device": {
+      "abort": {
+        "entry_not_loaded": "The parent Zentraly device is not currently loaded.",
+        "max_children": "This Zentraly device has reached the maximum number of child devices.",
+        "unsupported_parent": "This Zentraly device does not support child devices."
+      },
+      "entry_type": "Device",
+      "error": {
+        "already_configured": "This device is already configured.",
+        "cannot_connect": "Unable to communicate with the child device.",
+        "invalid_device": "The child device did not return a valid response.",
+        "invalid_mac": "The MAC address is invalid.",
+        "unsupported_child": "This device model cannot be added as a child of the selected Zentraly device.",
+        "unsupported_device": "This Zentraly device model is not supported."
+      },
+      "initiate_flow": {
+        "user": "Add device"
+      },
+      "step": {
+        "user": {
+          "data": {
+            "device_id": "Device ID",
+            "mac": "MAC address"
+          },
+          "data_description": {
+            "device_id": "The Zentraly device ID of the child device.",
+            "mac": "The MAC address of the child device."
+          },
+          "description": "Enter the device ID and MAC address of the Zentraly child device.",
+          "title": "Add Zentraly child device"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "forced_mode": {
+        "name": "Forced mode"
+      },
+      "on_off": {
+        "name": "On/Off"
+      }
+    },
+    "sensor": {
+      "errors": {
+        "name": "Errors"
+      },
+      "output_type": {
+        "name": "Output type",
+        "state": {
+          "on_off": "On/Off",
+          "opentherm": "OpenTherm"
+        }
+      },
+      "rssi": {
+        "name": "RSSI"
+      }
+    }
+  }
+}
