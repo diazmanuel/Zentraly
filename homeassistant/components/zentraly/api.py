@@ -11,7 +11,7 @@ from .commands.base import ZentralyDeviceCommands
 from .commands.common import ZentralyCommonCommands
 from .connection import ZentralyConnection, ZentralyTransportError
 from .devices import get_device_commands
-from .devices.device import DEVICE_PREFIXES, DeviceModel, DeviceType, get_device_model
+from .devices.device import DeviceModel, get_device_model
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,8 +59,13 @@ class ZentralyApi:
         self._device_id = device_id
         self._mac = mac
 
-        self._device_type = DeviceType.UNKNOWN
-        self._device_model = DeviceModel.UNKNOWN
+        self._device_model = get_device_model(self._device_id)
+
+        if self._device_model is DeviceModel.UNKNOWN:
+            _LOGGER.warning(
+                "Unknown Zentraly device prefix: %s",
+                self._device_id[:5],
+            )
 
         self._hardware_version = "Unknown"
         self._firmware_version = "Unknown"
@@ -84,25 +89,6 @@ class ZentralyApi:
         self._stop_requested = False
 
         self._keepalive_failures = 0
-
-        self._detect_device()
-
-    def _detect_device(self) -> None:
-        """Detect device type and model from the device ID."""
-
-        prefix = self._device_id[:5]
-
-        if prefix in DEVICE_PREFIXES:
-            info = DEVICE_PREFIXES[prefix]
-
-            self._device_type = info["type"]
-            self._device_model = info["model"]
-            return
-
-        _LOGGER.warning(
-            "Unknown Zentraly device prefix: %s",
-            prefix,
-        )
 
     @property
     def host(self) -> str:
@@ -133,12 +119,6 @@ class ZentralyApi:
         """Return device MAC address."""
 
         return self._mac
-
-    @property
-    def device_type(self) -> DeviceType:
-        """Return device type."""
-
-        return self._device_type
 
     @property
     def device_model(self) -> DeviceModel:

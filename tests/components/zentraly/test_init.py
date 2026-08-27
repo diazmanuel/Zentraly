@@ -3,7 +3,10 @@
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.components.zentraly.const import DOMAIN
-from homeassistant.components.zentraly.devices.device import DeviceModel, DeviceType
+from homeassistant.components.zentraly.devices.device import (
+    DeviceModel,
+    get_device_platforms,
+)
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
     CONF_DEVICE_ID,
@@ -87,7 +90,11 @@ async def test_setup_parent_device(
     assert entry.runtime_data.device.device_id == PARENT_DEVICE_ID
     assert entry.runtime_data.device.mac == PARENT_MAC
     assert entry.runtime_data.device.device_model is DeviceModel.ZTTIN
-    assert entry.runtime_data.device.device_type is DeviceType.CLIMATE
+    assert get_device_platforms(PARENT_DEVICE_ID) == frozenset(
+        {
+            Platform.CLIMATE,
+        }
+    )
 
     assert entry.runtime_data.children == {}
 
@@ -151,22 +158,28 @@ async def test_setup_parent_with_child(
     assert child.device_id == CHILD_DEVICE_ID
     assert child.mac == CHILD_MAC
     assert child.device_model is DeviceModel.ZTBIN
-    assert child.device_type is DeviceType.MONITOR
+    assert get_device_platforms(CHILD_DEVICE_ID) == frozenset(
+        {
+            Platform.BINARY_SENSOR,
+            Platform.SENSOR,
+        }
+    )
 
     # Parent and child must use exactly the same gateway API.
     assert runtime_data.device.api is runtime_data.api
     assert child.api is runtime_data.api
 
     mock_connect.assert_awaited_once()
+    mock_forward.assert_awaited_once()
 
-    mock_forward.assert_awaited_once_with(
-        entry,
-        [
-            Platform.CLIMATE,
-            Platform.BINARY_SENSOR,
-            Platform.SENSOR,
-        ],
-    )
+    forward_entry, forward_platforms = mock_forward.await_args.args
+
+    assert forward_entry is entry
+    assert set(forward_platforms) == {
+        Platform.CLIMATE,
+        Platform.BINARY_SENSOR,
+        Platform.SENSOR,
+    }
 
 
 async def test_setup_unexpected_mac(
@@ -261,13 +274,15 @@ async def test_unload_parent_with_child(
     assert result is True
     assert entry.state is ConfigEntryState.NOT_LOADED
 
-    mock_unload_platforms.assert_awaited_once_with(
-        entry,
-        [
-            Platform.CLIMATE,
-            Platform.BINARY_SENSOR,
-            Platform.SENSOR,
-        ],
-    )
+    mock_unload_platforms.assert_awaited_once()
+
+    unload_entry, unload_platforms = mock_unload_platforms.await_args.args
+
+    assert unload_entry is entry
+    assert set(unload_platforms) == {
+        Platform.CLIMATE,
+        Platform.BINARY_SENSOR,
+        Platform.SENSOR,
+    }
 
     mock_disconnect.assert_awaited_once()

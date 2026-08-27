@@ -3,14 +3,7 @@
 from enum import Enum
 from typing import TypedDict
 
-
-class DeviceType(Enum):
-    """Supported Zentraly device types."""
-
-    CLIMATE = "climate"
-    SWITCH = "switch"
-    MONITOR = "monitor"
-    UNKNOWN = "unknown"
+from homeassistant.const import Platform
 
 
 class DeviceModel(Enum):
@@ -24,16 +17,22 @@ class DeviceModel(Enum):
 class DeviceDefinition(TypedDict):
     """Definition of a supported Zentraly device."""
 
-    type: DeviceType
     model: DeviceModel
+    platforms: frozenset[Platform]
+    supports_zeroconf: bool
     allowed_child_models: frozenset[DeviceModel]
     max_children: int
 
 
 DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     "ZTTIN": {
-        "type": DeviceType.CLIMATE,
         "model": DeviceModel.ZTTIN,
+        "platforms": frozenset(
+            {
+                Platform.CLIMATE,
+            }
+        ),
+        "supports_zeroconf": True,
         "allowed_child_models": frozenset(
             {
                 DeviceModel.ZTBIN,
@@ -42,19 +41,18 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
         "max_children": 1,
     },
     "ZTBIN": {
-        "type": DeviceType.MONITOR,
         "model": DeviceModel.ZTBIN,
+        "platforms": frozenset(
+            {
+                Platform.BINARY_SENSOR,
+                Platform.SENSOR,
+            }
+        ),
+        "supports_zeroconf": False,
         "allowed_child_models": frozenset(),
         "max_children": 0,
     },
 }
-
-
-ZEROCONF_SUPPORTED_MODELS: frozenset[DeviceModel] = frozenset(
-    {
-        DeviceModel.ZTTIN,
-    }
-)
 
 
 def get_device_definition(
@@ -67,18 +65,9 @@ def get_device_definition(
     return DEVICE_PREFIXES.get(prefix)
 
 
-def get_device_type(device_id: str) -> DeviceType:
-    """Return the Zentraly device type for a device ID."""
-
-    device_info = get_device_definition(device_id)
-
-    if device_info is None:
-        return DeviceType.UNKNOWN
-
-    return device_info["type"]
-
-
-def get_device_model(device_id: str) -> DeviceModel:
+def get_device_model(
+    device_id: str,
+) -> DeviceModel:
     """Return the Zentraly device model for a device ID."""
 
     device_info = get_device_definition(device_id)
@@ -89,13 +78,35 @@ def get_device_model(device_id: str) -> DeviceModel:
     return device_info["model"]
 
 
-def supports_zeroconf_setup(device_id: str) -> bool:
+def get_device_platforms(
+    device_id: str,
+) -> frozenset[Platform]:
+    """Return the Home Assistant platforms for a Zentraly device."""
+
+    device_info = get_device_definition(device_id)
+
+    if device_info is None:
+        return frozenset()
+
+    return device_info["platforms"]
+
+
+def supports_zeroconf_setup(
+    device_id: str,
+) -> bool:
     """Return whether a device supports direct Zeroconf setup."""
 
-    return get_device_model(device_id) in ZEROCONF_SUPPORTED_MODELS
+    device_info = get_device_definition(device_id)
+
+    if device_info is None:
+        return False
+
+    return device_info["supports_zeroconf"]
 
 
-def supports_child_devices(device_id: str) -> bool:
+def supports_child_devices(
+    device_id: str,
+) -> bool:
     """Return whether a Zentraly device supports child devices."""
 
     device_info = get_device_definition(device_id)
@@ -125,7 +136,9 @@ def is_allowed_child_device(
     return child_model in parent_info["allowed_child_models"]
 
 
-def get_max_child_devices(device_id: str) -> int:
+def get_max_child_devices(
+    device_id: str,
+) -> int:
     """Return the maximum number of child devices."""
 
     device_info = get_device_definition(device_id)

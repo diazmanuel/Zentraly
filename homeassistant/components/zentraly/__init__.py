@@ -20,30 +20,10 @@ from homeassistant.helpers import device_registry as dr
 
 from .api import ZentralyApi, ZentralyAuthenticationError, ZentralyConnectionError
 from .devices import get_device_commands
-from .devices.device import DeviceModel, DeviceType, get_device_model, get_device_type
+from .devices.device import DeviceModel, get_device_model, get_device_platforms
 from .models import ZentralyConfigEntry, ZentralyData, ZentralyDevice
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def get_platforms(
-    device_type: DeviceType,
-) -> list[Platform]:
-    """Return Home Assistant platforms for a Zentraly device."""
-
-    if device_type is DeviceType.CLIMATE:
-        return [Platform.CLIMATE]
-
-    if device_type is DeviceType.SWITCH:
-        return [Platform.SWITCH]
-
-    if device_type is DeviceType.MONITOR:
-        return [
-            Platform.BINARY_SENSOR,
-            Platform.SENSOR,
-        ]
-
-    return []
 
 
 def create_device(
@@ -56,13 +36,9 @@ def create_device(
     """Create a runtime representation of a Zentraly device."""
 
     device_model = get_device_model(device_id)
-    device_type = get_device_type(device_id)
 
     if device_model is DeviceModel.UNKNOWN:
         raise ConfigEntryError(f"Unsupported Zentraly device model: {device_id}")
-
-    if device_type is DeviceType.UNKNOWN:
-        raise ConfigEntryError(f"Unsupported Zentraly device type: {device_id}")
 
     commands = get_device_commands(device_model)
 
@@ -70,7 +46,6 @@ def create_device(
         api=api,
         device_id=device_id,
         mac=mac,
-        device_type=device_type,
         device_model=device_model,
         commands=commands,
         via_device_id=via_device_id,
@@ -82,18 +57,23 @@ def get_runtime_platforms(
 ) -> list[Platform]:
     """Return all platforms required by a Zentraly config entry."""
 
-    platforms: list[Platform] = []
-
-    for platform in get_platforms(data.device.device_type):
-        if platform not in platforms:
-            platforms.append(platform)
+    platforms = set(
+        get_device_platforms(
+            data.device.device_id,
+        )
+    )
 
     for child in data.children.values():
-        for platform in get_platforms(child.device_type):
-            if platform not in platforms:
-                platforms.append(platform)
+        platforms.update(
+            get_device_platforms(
+                child.device_id,
+            )
+        )
 
-    return platforms
+    return sorted(
+        platforms,
+        key=lambda platform: platform.value,
+    )
 
 
 async def _async_reload_entry(
@@ -189,7 +169,10 @@ async def async_setup_entry(
     platforms = get_runtime_platforms(runtime_data)
 
     if not platforms:
-        raise ConfigEntryError(f"Unsupported Zentraly device type: {device.device_id}")
+        raise ConfigEntryError(
+            "No supported Home Assistant platforms for "
+            f"Zentraly device {device.device_id}"
+        )
 
     await api.async_connect()
 

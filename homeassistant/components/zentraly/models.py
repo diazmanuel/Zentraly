@@ -10,7 +10,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from .api import CommandResult, ConnectionStateListener, ReportListener, ZentralyApi
 from .commands.base import ZentralyDeviceCommands
 from .const import DOMAIN
-from .devices.device import DeviceModel, DeviceType
+from .devices.device import DeviceModel
 
 
 @dataclass(slots=True)
@@ -20,7 +20,6 @@ class ZentralyDevice:
     api: ZentralyApi
     device_id: str
     mac: str
-    device_type: DeviceType
     device_model: DeviceModel
     commands: ZentralyDeviceCommands
     via_device_id: str | None = None
