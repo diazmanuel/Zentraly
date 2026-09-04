@@ -61,16 +61,82 @@
   },
   "entity": {
     "binary_sensor": {
-      "forced_mode": {
-        "name": "Forced mode"
+      "boiler_on": {
+        "name": "Boiler"
       },
-      "on_off": {
-        "name": "On/Off"
+      "ot_dhw_enabled": {
+        "name": "Domestic hot water enabled"
+      },
+      "ot_heating_water_active": {
+        "name": "Heating water active"
+      },
+      "ot_winter_mode": {
+        "name": "Winter mode"
+      }
+    },
+    "button": {
+      "reset_boiler": {
+        "name": "Reset boiler"
+      },
+      "reset_device": {
+        "name": "Reset device"
+      }
+    },
+    "number": {
+      "high_power_limit": {
+        "name": "High power limit"
+      },
+      "high_voltage_limit": {
+        "name": "High voltage limit"
+      },
+      "low_voltage_limit": {
+        "name": "Low voltage limit"
+      },
+      "timer": {
+        "name": "Timer"
+      }
+    },
+    "select": {
+      "operation_mode": {
+        "name": "Operation mode",
+        "state": {
+          "auto": "Auto",
+          "manual": "Manual",
+          "off": "Off",
+          "timer": "Timer"
+        }
       }
     },
     "sensor": {
-      "errors": {
-        "name": "Errors"
+      "ch_setpoint": {
+        "name": "Central heating setpoint"
+      },
+      "ch_water_pressure": {
+        "name": "Central heating water pressure"
+      },
+      "current": {
+        "name": "Current"
+      },
+      "daily_energy": {
+        "name": "Daily energy"
+      },
+      "dhw_flow_rate": {
+        "name": "Domestic hot water flow rate"
+      },
+      "dhw_setpoint": {
+        "name": "Domestic hot water setpoint"
+      },
+      "dhw_temperature": {
+        "name": "Domestic hot water temperature"
+      },
+      "error_id": {
+        "name": "Error ID"
+      },
+      "feed_temperature": {
+        "name": "Feed temperature"
+      },
+      "modulation_level": {
+        "name": "Modulation level"
       },
       "output_type": {
         "name": "Output type",
@@ -79,8 +145,49 @@
           "opentherm": "OpenTherm"
         }
       },
+      "power": {
+        "name": "Power"
+      },
       "rssi": {
         "name": "RSSI"
+      },
+      "voltage": {
+        "name": "Voltage"
+      },
+      "wifi_signal_power": {
+        "name": "Wi-Fi signal power"
+      }
+    },
+    "switch": {
+      "always_on_display": {
+        "name": "Always-on display"
+      },
+      "always_on_led": {
+        "name": "Always-on LED"
+      },
+      "child_lock": {
+        "name": "Child lock"
+      },
+      "comfort_mode": {
+        "name": "Comfort mode"
+      },
+      "forced_mode": {
+        "name": "Forced mode"
+      },
+      "high_power_protection": {
+        "name": "High power protection"
+      },
+      "high_voltage_protection": {
+        "name": "High voltage protection"
+      },
+      "low_voltage_protection": {
+        "name": "Low voltage protection"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "return_to_crono": {
+        "name": "Return to schedule"
       }
     }
   }

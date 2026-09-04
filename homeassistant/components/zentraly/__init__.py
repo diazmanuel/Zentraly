@@ -1,5 +1,6 @@
 """The Zentraly integration."""
 
+from datetime import datetime
 import logging
 
 from homeassistant.const import (
@@ -17,8 +18,14 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
 )
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.event import async_track_time_interval
 
-from .api import ZentralyApi, ZentralyAuthenticationError, ZentralyConnectionError
+from .api import (
+    SCAN_INTERVAL,
+    ZentralyApi,
+    ZentralyAuthenticationError,
+    ZentralyConnectionError,
+)
 from .devices import get_device_commands
 from .devices.device import DeviceModel, get_device_model, get_device_platforms
 from .models import ZentralyConfigEntry, ZentralyData, ZentralyDevice
@@ -73,6 +80,170 @@ def get_runtime_platforms(
     return sorted(
         platforms,
         key=lambda platform: platform.value,
+    )
+
+
+def _supports_device_info_polling(
+    device: ZentralyDevice,
+) -> bool:
+    """Return whether the device supports device-information polling."""
+
+    firmware_builder = getattr(
+        device.commands,
+        "build_read_firmware_version",
+        None,
+    )
+    firmware_parser = getattr(
+        device.commands,
+        "parse_firmware_version_response",
+        None,
+    )
+    hardware_builder = getattr(
+        device.commands,
+        "build_read_hardware_version",
+        None,
+    )
+    hardware_parser = getattr(
+        device.commands,
+        "parse_hardware_version_response",
+        None,
+    )
+
+    return (
+        callable(firmware_builder)
+        and callable(firmware_parser)
+        and callable(hardware_builder)
+        and callable(hardware_parser)
+    )
+
+
+async def _async_read_device_info_value(
+    device: ZentralyDevice,
+    *,
+    builder_name: str,
+    parser_name: str,
+) -> str | None:
+    """Read one device-information value."""
+
+    builder = getattr(
+        device.commands,
+        builder_name,
+        None,
+    )
+    parser = getattr(
+        device.commands,
+        parser_name,
+        None,
+    )
+
+    if not callable(builder) or not callable(parser):
+        return None
+
+    result = await device.async_execute_command(
+        lambda rid: builder(
+            rid,
+            device.mac,
+        )
+    )
+
+    if result is None:
+        return None
+
+    rid, response = result
+
+    try:
+        value = parser(
+            response,
+            rid,
+        )
+
+    except TypeError, ValueError:
+        return None
+
+    if not isinstance(value, str):
+        return None
+
+    return value
+
+
+async def _async_refresh_device_info(
+    device: ZentralyDevice,
+    device_registry: dr.DeviceRegistry,
+    registry_device_id: str,
+) -> None:
+    """Refresh firmware and hardware information for a Zentraly device."""
+
+    if not device.connected:
+        return
+
+    firmware_version = await _async_read_device_info_value(
+        device,
+        builder_name="build_read_firmware_version",
+        parser_name="parse_firmware_version_response",
+    )
+
+    hardware_version = await _async_read_device_info_value(
+        device,
+        builder_name="build_read_hardware_version",
+        parser_name="parse_hardware_version_response",
+    )
+
+    changed = False
+
+    if firmware_version is not None and firmware_version != device.firmware_version:
+        device.firmware_version = firmware_version
+        changed = True
+
+    if hardware_version is not None and hardware_version != device.hardware_version:
+        device.hardware_version = hardware_version
+        changed = True
+
+    if not changed:
+        return
+
+    device_registry.async_update_device(
+        registry_device_id,
+        sw_version=device.firmware_version,
+        hw_version=device.hardware_version,
+    )
+
+    _LOGGER.debug(
+        "Updated Zentraly device information: device_id=%s firmware=%s hardware=%s",
+        device.device_id,
+        device.firmware_version,
+        device.hardware_version,
+    )
+
+
+def _register_device_info_polling(
+    hass: HomeAssistant,
+    entry: ZentralyConfigEntry,
+    device: ZentralyDevice,
+    device_registry: dr.DeviceRegistry,
+    registry_device_id: str,
+) -> None:
+    """Register periodic device-information polling when supported."""
+
+    if not _supports_device_info_polling(device):
+        return
+
+    async def _async_periodic_device_info_refresh(
+        now: datetime,
+    ) -> None:
+        """Periodically refresh Zentraly device information."""
+
+        await _async_refresh_device_info(
+            device,
+            device_registry,
+            registry_device_id,
+        )
+
+    entry.async_on_unload(
+        async_track_time_interval(
+            hass,
+            _async_periodic_device_info_refresh,
+            SCAN_INTERVAL,
+        )
     )
 
 
@@ -138,6 +309,7 @@ async def async_setup_entry(
     )
 
     children: dict[str, ZentralyDevice] = {}
+    child_registry_ids: dict[str, str] = {}
 
     for subentry_id, subentry in entry.subentries.items():
         child_device_id = subentry.data.get(CONF_DEVICE_ID)
@@ -153,12 +325,22 @@ async def async_setup_entry(
                 f"Missing MAC address for Zentraly subentry {subentry_id}"
             )
 
-        children[subentry_id] = create_device(
+        child = create_device(
             api=api,
             device_id=child_device_id,
             mac=child_mac,
             via_device_id=parent_device_entry.id,
         )
+
+        children[subentry_id] = child
+
+        child_device_entry = device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            config_subentry_id=subentry_id,
+            **child.device_info,
+        )
+
+        child_registry_ids[subentry_id] = child_device_entry.id
 
     runtime_data = ZentralyData(
         api=api,
@@ -179,6 +361,23 @@ async def async_setup_entry(
     entry.runtime_data = runtime_data
 
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+
+    _register_device_info_polling(
+        hass,
+        entry,
+        device,
+        device_registry,
+        parent_device_entry.id,
+    )
+
+    for subentry_id, child in children.items():
+        _register_device_info_polling(
+            hass,
+            entry,
+            child,
+            device_registry,
+            child_registry_ids[subentry_id],
+        )
 
     await hass.config_entries.async_forward_entry_setups(
         entry,

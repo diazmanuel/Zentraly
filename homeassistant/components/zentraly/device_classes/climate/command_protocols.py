@@ -2,7 +2,7 @@
 
 from typing import Any, Protocol
 
-from .types import ClimateOperationMode
+from ..types import ClimateOperationMode
 
 
 class LocalTemperatureCommands(Protocol):
@@ -138,39 +138,6 @@ class AwayTemperatureCommands(Protocol):
         expected_rid: int,
     ) -> float:
         """Parse the away temperature response."""
-
-
-class LockCommands(Protocol):
-    """Commands for devices supporting locking."""
-
-    def build_read_lock_mode(
-        self,
-        rid: int,
-        mac: str,
-    ) -> dict[str, Any]:
-        """Build the lock state read command."""
-
-    def parse_lock_mode_response(
-        self,
-        response: dict[str, Any],
-        expected_rid: int,
-    ) -> bool:
-        """Parse the lock state response."""
-
-    def build_write_lock_mode(
-        self,
-        rid: int,
-        mac: str,
-        locked: bool,
-    ) -> dict[str, Any]:
-        """Build the lock state write command."""
-
-    def parse_write_lock_mode_response(
-        self,
-        response: dict[str, Any],
-        expected_rid: int,
-    ) -> None:
-        """Parse the lock state write response."""
 
 
 class HeatDemandCommands(Protocol):

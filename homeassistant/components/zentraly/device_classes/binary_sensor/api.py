@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from ..sensor.capabilities import SensorCapability
+from ..types import ZentralyOutputType
 from .capabilities import BinarySensorCapability
 
 if TYPE_CHECKING:
@@ -10,6 +12,14 @@ if TYPE_CHECKING:
 
 type BinarySensorStateUpdate = dict[BinarySensorCapability, Any]
 type BinarySensorStateListener = Callable[[BinarySensorStateUpdate], None]
+
+_OPENTHERM_CAPABILITIES = frozenset(
+    {
+        BinarySensorCapability.OT_HEATING_WATER_ACTIVE,
+        BinarySensorCapability.OT_DHW_ENABLED,
+        BinarySensorCapability.OT_WINTER_MODE,
+    }
+)
 
 
 class ZentralyBinarySensorApi:
@@ -51,7 +61,7 @@ class ZentralyBinarySensorApi:
             )
 
         def remove_listener() -> None:
-            """Remove the binary sensor state update listener."""
+            """Remove the binary sensor state listener."""
 
             self._state_listeners.discard(listener)
 
@@ -95,10 +105,31 @@ class ZentralyBinarySensorApi:
 
             capability, value = result
 
+            #
+            # OUTPUT_TYPE is shared device state.
+            #
+            # Update it here as well so OpenTherm binary sensors do not
+            # depend on the order in which platform listeners run.
+            #
+
+            if capability is SensorCapability.OUTPUT_TYPE:
+                if isinstance(value, ZentralyOutputType):
+                    self._device.output_type = value
+
+                continue
+
             if not isinstance(capability, BinarySensorCapability):
                 continue
 
             if not self.supports(capability):
+                continue
+
+            if capability in _OPENTHERM_CAPABILITIES:
+                if not self._device.opentherm_connected:
+                    updates[capability] = None
+                    continue
+
+            if not isinstance(value, bool):
                 continue
 
             updates[capability] = value
@@ -109,20 +140,32 @@ class ZentralyBinarySensorApi:
         for listener in tuple(self._state_listeners):
             listener(updates)
 
-    async def async_get_on_off(self) -> bool | None:
-        """Return the current on/off state."""
+    async def _async_get_binary_value(
+        self,
+        *,
+        capability: BinarySensorCapability,
+        builder_name: str,
+        parser_name: str,
+    ) -> bool | None:
+        """Read a binary capability from the device."""
 
-        if not self.supports(BinarySensorCapability.ON_OFF):
+        if not self.supports(capability):
+            return None
+
+        if (
+            capability in _OPENTHERM_CAPABILITIES
+            and not self._device.opentherm_connected
+        ):
             return None
 
         builder = getattr(
             self._device.commands,
-            "build_read_on_off",
+            builder_name,
             None,
         )
         parser = getattr(
             self._device.commands,
-            "parse_on_off_response",
+            parser_name,
             None,
         )
 
@@ -155,48 +198,46 @@ class ZentralyBinarySensorApi:
 
         return value
 
-    async def async_get_forced_mode(self) -> bool | None:
-        """Return the current forced-mode state."""
+    async def async_get_boiler_on(
+        self,
+    ) -> bool | None:
+        """Return whether the boiler is on."""
 
-        if not self.supports(BinarySensorCapability.FORCED_MODE):
-            return None
-
-        builder = getattr(
-            self._device.commands,
-            "build_read_forced_mode",
-            None,
-        )
-        parser = getattr(
-            self._device.commands,
-            "parse_forced_mode_response",
-            None,
+        return await self._async_get_binary_value(
+            capability=BinarySensorCapability.BOILER_ON,
+            builder_name="build_read_boiler_on",
+            parser_name="parse_boiler_on_response",
         )
 
-        if not callable(builder) or not callable(parser):
-            return None
+    async def async_get_ot_heating_water_active(
+        self,
+    ) -> bool | None:
+        """Return whether OpenTherm heating water is active."""
 
-        result = await self._device.async_execute_command(
-            lambda rid: builder(
-                rid,
-                self._device.mac,
-            )
+        return await self._async_get_binary_value(
+            capability=BinarySensorCapability.OT_HEATING_WATER_ACTIVE,
+            builder_name="build_read_ot_heating_water_active",
+            parser_name="parse_ot_heating_water_active_response",
         )
 
-        if result is None:
-            return None
+    async def async_get_ot_dhw_enabled(
+        self,
+    ) -> bool | None:
+        """Return whether OpenTherm domestic hot water is enabled."""
 
-        rid, response = result
+        return await self._async_get_binary_value(
+            capability=BinarySensorCapability.OT_DHW_ENABLED,
+            builder_name="build_read_ot_dhw_enabled",
+            parser_name="parse_ot_dhw_enabled_response",
+        )
 
-        try:
-            value = parser(
-                response,
-                rid,
-            )
+    async def async_get_ot_winter_mode(
+        self,
+    ) -> bool | None:
+        """Return whether OpenTherm winter mode is active."""
 
-        except TypeError, ValueError:
-            return None
-
-        if not isinstance(value, bool):
-            return None
-
-        return value
+        return await self._async_get_binary_value(
+            capability=BinarySensorCapability.OT_WINTER_MODE,
+            builder_name="build_read_ot_winter_mode",
+            parser_name="parse_ot_winter_mode_response",
+        )

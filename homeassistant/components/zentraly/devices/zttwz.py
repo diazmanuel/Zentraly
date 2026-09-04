@@ -1,5 +1,6 @@
-"""Commands for Zentraly ZTBIN devices."""
+"""Commands for Zentraly ZTTWZ devices."""
 
+from enum import IntEnum
 from typing import Any, override
 
 from ..commands.base import ZentralyDeviceCommands
@@ -7,27 +8,50 @@ from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.binary_sensor.capabilities import BinarySensorCapability
 from ..device_classes.button.capabilities import ButtonCapability
+from ..device_classes.climate.capabilities import ClimateCapability
 from ..device_classes.sensor.capabilities import SensorCapability
 from ..device_classes.switch.capabilities import SwitchCapability
-from ..device_classes.types import ZentralyOutputType
+from ..device_classes.types import ClimateOperationMode, ZentralyOutputType
 
 
-class ZtbinCommands(ZentralyDeviceCommands):
-    """Commands supported by ZTBIN devices."""
+class ZttwzOperationMode(IntEnum):
+    """ZTTWZ operating modes."""
+
+    OFF = 0
+    USER = 1
+    CRONO = 2
+    AWAY = 3
+
+
+ZTTWZ_TO_CLIMATE_OPERATION_MODE = {
+    ZttwzOperationMode.OFF: ClimateOperationMode.OFF,
+    ZttwzOperationMode.USER: ClimateOperationMode.MANUAL,
+    ZttwzOperationMode.CRONO: ClimateOperationMode.AUTO,
+    ZttwzOperationMode.AWAY: ClimateOperationMode.AWAY,
+}
+
+CLIMATE_TO_ZTTWZ_OPERATION_MODE = {
+    climate_mode: zttwz_mode
+    for zttwz_mode, climate_mode in ZTTWZ_TO_CLIMATE_OPERATION_MODE.items()
+}
+
+
+class ZttwzCommands(ZentralyDeviceCommands):
+    """Commands supported by ZTTWZ devices."""
 
     ENDPOINT = 1
 
     capabilities = frozenset(
         {
-            # Binary sensors
-            BinarySensorCapability.BOILER_ON,
-            BinarySensorCapability.OT_HEATING_WATER_ACTIVE,
-            BinarySensorCapability.OT_DHW_ENABLED,
-            BinarySensorCapability.OT_WINTER_MODE,
-            # Sensors
+            ClimateCapability.LOCAL_TEMPERATURE,
+            ClimateCapability.TARGET_TEMPERATURE,
+            ClimateCapability.OPERATION_MODE,
+            ClimateCapability.AWAY_TEMPERATURE,
+            ClimateCapability.HEAT_DEMAND,
+            ClimateCapability.HUMIDITY,
             SensorCapability.ERROR_ID,
             SensorCapability.OUTPUT_TYPE,
-            SensorCapability.RSSI,
+            SensorCapability.WIFI_SIGNAL_POWER,
             SensorCapability.CH_SETPOINT,
             SensorCapability.MODULATION_LEVEL,
             SensorCapability.CH_WATER_PRESSURE,
@@ -35,18 +59,16 @@ class ZtbinCommands(ZentralyDeviceCommands):
             SensorCapability.FEED_TEMPERATURE,
             SensorCapability.DHW_TEMPERATURE,
             SensorCapability.DHW_SETPOINT,
-            # Switches
-            SwitchCapability.FORCED_MODE,
+            BinarySensorCapability.OT_HEATING_WATER_ACTIVE,
+            BinarySensorCapability.OT_DHW_ENABLED,
+            BinarySensorCapability.OT_WINTER_MODE,
+            SwitchCapability.CHILD_LOCK,
+            SwitchCapability.ALWAYS_ON_DISPLAY,
             SwitchCapability.COMFORT_MODE,
-            # Buttons
             ButtonCapability.RESET_DEVICE,
             ButtonCapability.RESET_BOILER,
         }
     )
-
-    #
-    # Basic cluster
-    #
 
     BASIC_CLUSTER = 65000
 
@@ -59,30 +81,42 @@ class ZtbinCommands(ZentralyDeviceCommands):
     RESET_DEVICE_ATTRIBUTE_ID = 12
     RESET_DEVICE_ATTRIBUTE_TYPE = DataType.INT16
 
-    #
-    # Boiler state
-    #
+    WIFI_SIGNAL_POWER_ATTRIBUTE_ID = 14
+    WIFI_SIGNAL_POWER_ATTRIBUTE_TYPE = DataType.INT16
+
+    MAC_ATTRIBUTE_ID = 20
+    MAC_ATTRIBUTE_TYPE = DataType.CHAR_STRING
 
     BOILER_STATE_CLUSTER = 65006
 
     BOILER_ON_ATTRIBUTE_ID = 0
     BOILER_ON_ATTRIBUTE_TYPE = DataType.INT16
 
-    FORCED_MODE_ATTRIBUTE_ID = 2
-    FORCED_MODE_ATTRIBUTE_TYPE = DataType.INT16
+    THERMOSTAT_CLUSTER = 65513
 
-    #
-    # RSSI
-    #
+    LOCAL_TEMPERATURE_ATTRIBUTE_ID = 0
+    LOCAL_TEMPERATURE_ATTRIBUTE_TYPE = DataType.INT16
 
-    RSSI_CLUSTER = 65534
+    HUMIDITY_ATTRIBUTE_ID = 1
+    HUMIDITY_ATTRIBUTE_TYPE = DataType.INT16
 
-    RSSI_ATTRIBUTE_ID = 200
-    RSSI_ATTRIBUTE_TYPE = DataType.INT16
+    HEAT_DEMAND_ATTRIBUTE_ID = 6
+    HEAT_DEMAND_ATTRIBUTE_TYPE = DataType.INT16
 
-    #
-    # OpenTherm cluster
-    #
+    AWAY_TEMPERATURE_ATTRIBUTE_ID = 17
+    AWAY_TEMPERATURE_ATTRIBUTE_TYPE = DataType.INT16
+
+    TARGET_TEMPERATURE_ATTRIBUTE_ID = 18
+    TARGET_TEMPERATURE_ATTRIBUTE_TYPE = DataType.INT16
+
+    OPERATION_MODE_ATTRIBUTE_ID = 28
+    OPERATION_MODE_ATTRIBUTE_TYPE = DataType.INT16
+
+    CHILD_LOCK_ATTRIBUTE_ID = 90
+    CHILD_LOCK_ATTRIBUTE_TYPE = DataType.INT16
+
+    ALWAYS_ON_DISPLAY_ATTRIBUTE_ID = 101
+    ALWAYS_ON_DISPLAY_ATTRIBUTE_TYPE = DataType.INT16
 
     OPENTHERM_CLUSTER = 65535
 
@@ -122,17 +156,9 @@ class ZtbinCommands(ZentralyDeviceCommands):
     COMFORT_MODE_ATTRIBUTE_ID = 10001
     COMFORT_MODE_ATTRIBUTE_TYPE = DataType.INT16
 
-    #
-    # OpenTherm status bits
-    #
-
     OT_HEATING_WATER_ACTIVE_BIT = 0
     OT_DHW_ENABLED_BIT = 1
     OT_WINTER_MODE_BIT = 5
-
-    #
-    # Generic helpers
-    #
 
     @classmethod
     def _build_read_attribute(
@@ -144,7 +170,7 @@ class ZtbinCommands(ZentralyDeviceCommands):
         attribute_id: int,
         data_type: int,
     ) -> dict[str, Any]:
-        """Build a ZTBIN single-attribute read command."""
+        """Build a ZTTWZ single-attribute read command."""
 
         return ZentralyCommonCommands.build_read_attr(
             rid=rid,
@@ -168,9 +194,9 @@ class ZtbinCommands(ZentralyDeviceCommands):
         cluster: int,
         attribute_id: int,
         data_type: int,
-        value: int,
+        value: str | int,
     ) -> dict[str, Any]:
-        """Build a ZTBIN single-attribute write command."""
+        """Build a ZTTWZ single-attribute write command."""
 
         return ZentralyCommonCommands.build_write_attr(
             rid=rid,
@@ -201,11 +227,11 @@ class ZtbinCommands(ZentralyDeviceCommands):
                 continue
 
             if "val" not in attr:
-                raise ValueError(f"Missing value for ZTBIN attribute {attribute_id}")
+                raise ValueError(f"Missing value for ZTTWZ attribute {attribute_id}")
 
             return attr["val"]
 
-        raise ValueError(f"ZTBIN attribute {attribute_id} not found in response")
+        raise ValueError(f"ZTTWZ attribute {attribute_id} not found in response")
 
     @staticmethod
     def _parse_integer(
@@ -214,7 +240,7 @@ class ZtbinCommands(ZentralyDeviceCommands):
         """Validate and return an integer attribute."""
 
         if not isinstance(value, int):
-            raise TypeError("Expected integer ZTBIN attribute value")
+            raise TypeError("Expected integer ZTTWZ attribute value")
 
         return value
 
@@ -224,20 +250,61 @@ class ZtbinCommands(ZentralyDeviceCommands):
         value: Any,
         attribute_name: str,
     ) -> bool:
-        """Validate and convert a binary ZTBIN attribute."""
+        """Validate and convert a binary ZTTWZ attribute."""
 
         raw_value = cls._parse_integer(value)
 
         if raw_value not in (0, 1):
-            raise ValueError(f"Invalid ZTBIN {attribute_name} value: {raw_value}")
+            raise ValueError(f"Invalid ZTTWZ {attribute_name} value: {raw_value}")
 
         return raw_value == 1
+
+    @staticmethod
+    def _temperature_from_raw(
+        value: int,
+    ) -> float:
+        """Convert an x100 temperature value to Celsius."""
+
+        return value / 100
+
+    @staticmethod
+    def _temperature_to_raw(
+        value: float,
+    ) -> int:
+        """Convert Celsius to the ZTTWZ x100 representation."""
+
+        return round(value * 100)
+
+    @staticmethod
+    def _humidity_from_raw(
+        value: int,
+    ) -> float:
+        """Validate and convert humidity to percentage."""
+
+        if not 0 <= value <= 100:
+            raise ValueError(f"Invalid ZTTWZ humidity value: {value}")
+
+        return float(value)
+
+    @staticmethod
+    def _operation_mode_from_raw(
+        value: int,
+    ) -> ClimateOperationMode:
+        """Convert a raw ZTTWZ operation mode."""
+
+        try:
+            zttwz_mode = ZttwzOperationMode(value)
+
+        except ValueError as err:
+            raise ValueError(f"Unsupported ZTTWZ operation mode: {value}") from err
+
+        return ZTTWZ_TO_CLIMATE_OPERATION_MODE[zttwz_mode]
 
     @staticmethod
     def _output_type_from_raw(
         value: int,
     ) -> ZentralyOutputType:
-        """Convert a raw ZTBIN output type."""
+        """Convert a raw ZTTWZ output type."""
 
         if value == 0:
             return ZentralyOutputType.ON_OFF
@@ -245,7 +312,7 @@ class ZtbinCommands(ZentralyDeviceCommands):
         if value == 1:
             return ZentralyOutputType.OPENTHERM
 
-        raise ValueError(f"Invalid ZTBIN output type value: {value}")
+        raise ValueError(f"Invalid ZTTWZ output type value: {value}")
 
     @classmethod
     def _parse_read_integer_response(
@@ -296,30 +363,27 @@ class ZtbinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> None:
-        """Validate a ZTBIN write response."""
+        """Validate a ZTTWZ write response."""
 
         ZentralyCommonCommands.parse_write_attr_response(
             response,
             expected_rid,
         )
 
-    #
-    # Reports
-    #
-    # Only attributes marked reportable are parsed here.
-    #
-
     def parse_report_entry(
         self,
         entry: dict[str, Any],
     ) -> (
         tuple[
-            BinarySensorCapability | SensorCapability | SwitchCapability,
+            ClimateCapability
+            | BinarySensorCapability
+            | SensorCapability
+            | SwitchCapability,
             Any,
         ]
         | None
     ):
-        """Parse a supported ZTBIN report entry."""
+        """Parse a supported ZTTWZ report entry."""
 
         if entry.get("mac") not in (None, "") and not isinstance(
             entry.get("mac"),
@@ -354,20 +418,47 @@ class ZtbinCommands(ZentralyDeviceCommands):
                     ),
                 )
 
-            if attribute_id == self.FORCED_MODE_ATTRIBUTE_ID:
+        if cluster == self.THERMOSTAT_CLUSTER:
+            if attribute_id == self.LOCAL_TEMPERATURE_ATTRIBUTE_ID:
                 return (
-                    SwitchCapability.FORCED_MODE,
+                    ClimateCapability.LOCAL_TEMPERATURE,
+                    self._temperature_from_raw(self._parse_integer(value)),
+                )
+
+            if attribute_id == self.HUMIDITY_ATTRIBUTE_ID:
+                return (
+                    ClimateCapability.HUMIDITY,
+                    self._humidity_from_raw(self._parse_integer(value)),
+                )
+
+            if attribute_id == self.HEAT_DEMAND_ATTRIBUTE_ID:
+                return (
+                    ClimateCapability.HEAT_DEMAND,
                     self._parse_binary_value(
                         value,
-                        "forced mode",
+                        "heat demand",
                     ),
                 )
 
-        if cluster == self.RSSI_CLUSTER:
-            if attribute_id == self.RSSI_ATTRIBUTE_ID:
+            if attribute_id == self.TARGET_TEMPERATURE_ATTRIBUTE_ID:
                 return (
-                    SensorCapability.RSSI,
-                    self._parse_integer(value),
+                    ClimateCapability.TARGET_TEMPERATURE,
+                    self._temperature_from_raw(self._parse_integer(value)),
+                )
+
+            if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
+                return (
+                    ClimateCapability.OPERATION_MODE,
+                    self._operation_mode_from_raw(self._parse_integer(value)),
+                )
+
+            if attribute_id == self.CHILD_LOCK_ATTRIBUTE_ID:
+                return (
+                    SwitchCapability.CHILD_LOCK,
+                    self._parse_binary_value(
+                        value,
+                        "child lock",
+                    ),
                 )
 
         if cluster == self.OPENTHERM_CLUSTER:
@@ -380,25 +471,25 @@ class ZtbinCommands(ZentralyDeviceCommands):
             if attribute_id == self.OUTPUT_TYPE_ATTRIBUTE_ID:
                 return (
                     SensorCapability.OUTPUT_TYPE,
-                    self._output_type_from_raw(
-                        self._parse_integer(value),
-                    ),
+                    self._output_type_from_raw(self._parse_integer(value)),
                 )
 
         return None
-
-    #
-    # MAC address
-    #
 
     @override
     def get_mac_command(
         self,
         rid: int,
     ) -> dict[str, Any]:
-        """Return the command to read the device MAC."""
+        """Return the command to read the ZTTWZ MAC address."""
 
-        raise NotImplementedError("ZTBIN devices do not support MAC discovery")
+        return self._build_read_attribute(
+            rid=rid,
+            mac="",
+            cluster=self.BASIC_CLUSTER,
+            attribute_id=self.MAC_ATTRIBUTE_ID,
+            data_type=self.MAC_ATTRIBUTE_TYPE,
+        )
 
     @override
     def parse_mac_response(
@@ -406,13 +497,22 @@ class ZtbinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> str:
-        """Parse the MAC address from a ZTBIN response."""
+        """Parse the MAC address from a ZTTWZ response."""
 
-        raise NotImplementedError("ZTBIN devices do not support MAC discovery")
+        attrs = ZentralyCommonCommands.parse_read_attr_response(
+            response,
+            expected_rid,
+        )
 
-    #
-    # Child-device validation
-    #
+        mac = self._parse_attribute_value(
+            attrs,
+            self.MAC_ATTRIBUTE_ID,
+        )
+
+        if not isinstance(mac, str) or not mac:
+            raise ValueError("Invalid ZTTWZ MAC address")
+
+        return mac
 
     @override
     def build_validation_command(
@@ -420,7 +520,7 @@ class ZtbinCommands(ZentralyDeviceCommands):
         rid: int,
         mac: str,
     ) -> dict[str, Any]:
-        """Build the ZTBIN child-device validation command."""
+        """Build the ZTTWZ child-device validation command."""
 
         return self.build_read_boiler_on(
             rid,
@@ -433,16 +533,12 @@ class ZtbinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> None:
-        """Validate a ZTBIN child-device response."""
+        """Validate a ZTTWZ child-device response."""
 
         self.parse_boiler_on_response(
             response,
             expected_rid,
         )
-
-    #
-    # Firmware version - R
-    #
 
     def build_read_firmware_version(
         self,
@@ -477,13 +573,9 @@ class ZtbinCommands(ZentralyDeviceCommands):
         )
 
         if not isinstance(value, str) or not value:
-            raise ValueError("Invalid ZTBIN firmware version")
+            raise ValueError("Invalid ZTTWZ firmware version")
 
         return value
-
-    #
-    # Hardware version - R
-    #
 
     def build_read_hardware_version(
         self,
@@ -518,13 +610,9 @@ class ZtbinCommands(ZentralyDeviceCommands):
         )
 
         if not isinstance(value, str) or not value:
-            raise ValueError("Invalid ZTBIN hardware version")
+            raise ValueError("Invalid ZTTWZ hardware version")
 
         return value
-
-    #
-    # Device reset - W
-    #
 
     def build_reset_device(
         self,
@@ -549,14 +637,38 @@ class ZtbinCommands(ZentralyDeviceCommands):
     ) -> None:
         """Validate the device-reset response."""
 
-        ZtbinCommands._parse_write_response(
+        ZttwzCommands._parse_write_response(
             response,
             expected_rid,
         )
 
-    #
-    # Boiler state - R
-    #
+    def build_read_wifi_signal_power(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the Wi-Fi signal-power read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.BASIC_CLUSTER,
+            attribute_id=self.WIFI_SIGNAL_POWER_ATTRIBUTE_ID,
+            data_type=self.WIFI_SIGNAL_POWER_ATTRIBUTE_TYPE,
+        )
+
+    def parse_wifi_signal_power_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> int:
+        """Parse Wi-Fi signal power in dBm."""
+
+        return self._parse_read_integer_response(
+            response,
+            expected_rid,
+            self.WIFI_SIGNAL_POWER_ATTRIBUTE_ID,
+        )
 
     def build_read_boiler_on(
         self,
@@ -587,85 +699,374 @@ class ZtbinCommands(ZentralyDeviceCommands):
             "boiler state",
         )
 
-    #
-    # Forced mode - R/W
-    #
-
-    def build_read_forced_mode(
+    def build_read_local_temperature(
         self,
         rid: int,
         mac: str,
     ) -> dict[str, Any]:
-        """Build the forced-mode read command."""
+        """Build the local-temperature read command."""
 
         return self._build_read_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.BOILER_STATE_CLUSTER,
-            attribute_id=self.FORCED_MODE_ATTRIBUTE_ID,
-            data_type=self.FORCED_MODE_ATTRIBUTE_TYPE,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.LOCAL_TEMPERATURE_ATTRIBUTE_ID,
+            data_type=self.LOCAL_TEMPERATURE_ATTRIBUTE_TYPE,
         )
 
-    def parse_forced_mode_response(
+    def parse_local_temperature_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> float:
+        """Parse local temperature in Celsius."""
+
+        raw_value = self._parse_read_integer_response(
+            response,
+            expected_rid,
+            self.LOCAL_TEMPERATURE_ATTRIBUTE_ID,
+        )
+
+        return self._temperature_from_raw(raw_value)
+
+    def build_read_humidity(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the humidity read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.HUMIDITY_ATTRIBUTE_ID,
+            data_type=self.HUMIDITY_ATTRIBUTE_TYPE,
+        )
+
+    def parse_humidity_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> float:
+        """Parse relative humidity percentage."""
+
+        raw_value = self._parse_read_integer_response(
+            response,
+            expected_rid,
+            self.HUMIDITY_ATTRIBUTE_ID,
+        )
+
+        return self._humidity_from_raw(raw_value)
+
+    def build_read_heat_demand(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the heat-demand read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.HEAT_DEMAND_ATTRIBUTE_ID,
+            data_type=self.HEAT_DEMAND_ATTRIBUTE_TYPE,
+        )
+
+    def parse_heat_demand_response(
         self,
         response: dict[str, Any],
         expected_rid: int,
     ) -> bool:
-        """Parse the forced-mode state."""
+        """Parse whether the thermostat is heating."""
 
         return self._parse_read_binary_response(
             response,
             expected_rid,
-            self.FORCED_MODE_ATTRIBUTE_ID,
-            "forced mode",
+            self.HEAT_DEMAND_ATTRIBUTE_ID,
+            "heat demand",
         )
 
-    def build_write_forced_mode(
+    def build_read_away_temperature(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the away-temperature read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.AWAY_TEMPERATURE_ATTRIBUTE_ID,
+            data_type=self.AWAY_TEMPERATURE_ATTRIBUTE_TYPE,
+        )
+
+    def parse_away_temperature_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> float:
+        """Parse away temperature in Celsius."""
+
+        raw_value = self._parse_read_integer_response(
+            response,
+            expected_rid,
+            self.AWAY_TEMPERATURE_ATTRIBUTE_ID,
+        )
+
+        return self._temperature_from_raw(raw_value)
+
+    def build_read_target_temperature(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the target-temperature read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.TARGET_TEMPERATURE_ATTRIBUTE_ID,
+            data_type=self.TARGET_TEMPERATURE_ATTRIBUTE_TYPE,
+        )
+
+    def parse_target_temperature_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> float:
+        """Parse target temperature in Celsius."""
+
+        raw_value = self._parse_read_integer_response(
+            response,
+            expected_rid,
+            self.TARGET_TEMPERATURE_ATTRIBUTE_ID,
+        )
+
+        return self._temperature_from_raw(raw_value)
+
+    def build_write_target_temperature(
+        self,
+        rid: int,
+        mac: str,
+        temperature: float,
+    ) -> dict[str, Any]:
+        """Build the target-temperature write command."""
+
+        raw_temperature = self._temperature_to_raw(temperature)
+
+        if not 500 <= raw_temperature <= 3000:
+            raise ValueError("Target temperature must be between 5 and 30 °C")
+
+        if raw_temperature % 50 != 0:
+            raise ValueError("Target temperature must use 0.5 °C steps")
+
+        return self._build_write_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.TARGET_TEMPERATURE_ATTRIBUTE_ID,
+            data_type=self.TARGET_TEMPERATURE_ATTRIBUTE_TYPE,
+            value=raw_temperature,
+        )
+
+    @staticmethod
+    def parse_write_target_temperature_response(
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> None:
+        """Validate target-temperature write response."""
+
+        ZttwzCommands._parse_write_response(
+            response,
+            expected_rid,
+        )
+
+    def build_read_operation_mode(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the operation-mode read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.OPERATION_MODE_ATTRIBUTE_ID,
+            data_type=self.OPERATION_MODE_ATTRIBUTE_TYPE,
+        )
+
+    def parse_operation_mode_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> ClimateOperationMode:
+        """Parse the ZTTWZ operation mode."""
+
+        raw_value = self._parse_read_integer_response(
+            response,
+            expected_rid,
+            self.OPERATION_MODE_ATTRIBUTE_ID,
+        )
+
+        return self._operation_mode_from_raw(raw_value)
+
+    def build_write_operation_mode(
+        self,
+        rid: int,
+        mac: str,
+        mode: ClimateOperationMode,
+    ) -> dict[str, Any]:
+        """Build the operation-mode write command."""
+
+        try:
+            zttwz_mode = CLIMATE_TO_ZTTWZ_OPERATION_MODE[mode]
+
+        except KeyError as err:
+            raise ValueError(
+                f"Unsupported climate operation mode for ZTTWZ: {mode}"
+            ) from err
+
+        return self._build_write_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.OPERATION_MODE_ATTRIBUTE_ID,
+            data_type=self.OPERATION_MODE_ATTRIBUTE_TYPE,
+            value=int(zttwz_mode),
+        )
+
+    @staticmethod
+    def parse_write_operation_mode_response(
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> None:
+        """Validate operation-mode write response."""
+
+        ZttwzCommands._parse_write_response(
+            response,
+            expected_rid,
+        )
+
+    def build_read_child_lock(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the child-lock read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.CHILD_LOCK_ATTRIBUTE_ID,
+            data_type=self.CHILD_LOCK_ATTRIBUTE_TYPE,
+        )
+
+    def parse_child_lock_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> bool:
+        """Parse the child-lock state."""
+
+        return self._parse_read_binary_response(
+            response,
+            expected_rid,
+            self.CHILD_LOCK_ATTRIBUTE_ID,
+            "child lock",
+        )
+
+    def build_write_child_lock(
         self,
         rid: int,
         mac: str,
         enabled: bool,
     ) -> dict[str, Any]:
-        """Build the forced-mode write command."""
+        """Build the child-lock write command."""
 
         return self._build_write_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.BOILER_STATE_CLUSTER,
-            attribute_id=self.FORCED_MODE_ATTRIBUTE_ID,
-            data_type=self.FORCED_MODE_ATTRIBUTE_TYPE,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.CHILD_LOCK_ATTRIBUTE_ID,
+            data_type=self.CHILD_LOCK_ATTRIBUTE_TYPE,
             value=int(enabled),
         )
 
     @staticmethod
-    def parse_write_forced_mode_response(
+    def parse_write_child_lock_response(
         response: dict[str, Any],
         expected_rid: int,
     ) -> None:
-        """Validate the forced-mode write response."""
+        """Validate child-lock write response."""
 
-        ZtbinCommands._parse_write_response(
+        ZttwzCommands._parse_write_response(
             response,
             expected_rid,
         )
 
-    #
-    # RSSI - Report only
-    #
-
-    def parse_rssi_report_value(
+    def build_read_always_on_display(
         self,
-        value: Any,
-    ) -> int:
-        """Parse a ZTBIN RSSI report value in dBm."""
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the always-on-display read command."""
 
-        return self._parse_integer(value)
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.ALWAYS_ON_DISPLAY_ATTRIBUTE_ID,
+            data_type=self.ALWAYS_ON_DISPLAY_ATTRIBUTE_TYPE,
+        )
 
-    #
-    # OpenTherm status - R
-    #
-    # The same attribute feeds the three binary entities below.
-    #
+    def parse_always_on_display_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> bool:
+        """Parse the always-on-display state."""
+
+        return self._parse_read_binary_response(
+            response,
+            expected_rid,
+            self.ALWAYS_ON_DISPLAY_ATTRIBUTE_ID,
+            "always-on display",
+        )
+
+    def build_write_always_on_display(
+        self,
+        rid: int,
+        mac: str,
+        enabled: bool,
+    ) -> dict[str, Any]:
+        """Build the always-on-display write command."""
+
+        return self._build_write_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.ALWAYS_ON_DISPLAY_ATTRIBUTE_ID,
+            data_type=self.ALWAYS_ON_DISPLAY_ATTRIBUTE_TYPE,
+            value=int(enabled),
+        )
+
+    @staticmethod
+    def parse_write_always_on_display_response(
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> None:
+        """Validate always-on-display write response."""
+
+        ZttwzCommands._parse_write_response(
+            response,
+            expected_rid,
+        )
 
     def _build_read_ot_status(
         self,
@@ -773,10 +1174,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
 
         return not bool(status & (1 << self.OT_WINTER_MODE_BIT))
 
-    #
-    # OpenTherm CH setpoint - R
-    #
-
     def build_read_ch_setpoint(
         self,
         rid: int,
@@ -805,10 +1202,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
             self.CH_SETPOINT_ATTRIBUTE_ID,
         )
 
-    #
-    # OpenTherm boiler reset - W
-    #
-
     def build_reset_boiler(
         self,
         rid: int,
@@ -832,14 +1225,10 @@ class ZtbinCommands(ZentralyDeviceCommands):
     ) -> None:
         """Validate the OpenTherm boiler-reset response."""
 
-        ZtbinCommands._parse_write_response(
+        ZttwzCommands._parse_write_response(
             response,
             expected_rid,
         )
-
-    #
-    # OpenTherm error ID - R
-    #
 
     def build_read_error_id(
         self,
@@ -869,10 +1258,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
             self.ERROR_ID_ATTRIBUTE_ID,
         )
 
-    #
-    # OpenTherm modulation level - R
-    #
-
     def build_read_modulation_level(
         self,
         rid: int,
@@ -900,10 +1285,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
             expected_rid,
             self.MODULATION_LEVEL_ATTRIBUTE_ID,
         )
-
-    #
-    # OpenTherm CH water pressure - R
-    #
 
     def build_read_ch_water_pressure(
         self,
@@ -933,10 +1314,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
             self.CH_WATER_PRESSURE_ATTRIBUTE_ID,
         )
 
-    #
-    # OpenTherm DHW flow rate - R
-    #
-
     def build_read_dhw_flow_rate(
         self,
         rid: int,
@@ -964,10 +1341,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
             expected_rid,
             self.DHW_FLOW_RATE_ATTRIBUTE_ID,
         )
-
-    #
-    # OpenTherm feed temperature - R
-    #
 
     def build_read_feed_temperature(
         self,
@@ -997,10 +1370,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
             self.FEED_TEMPERATURE_ATTRIBUTE_ID,
         )
 
-    #
-    # OpenTherm DHW temperature - R
-    #
-
     def build_read_dhw_temperature(
         self,
         rid: int,
@@ -1028,10 +1397,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
             expected_rid,
             self.DHW_TEMPERATURE_ATTRIBUTE_ID,
         )
-
-    #
-    # OpenTherm DHW setpoint - R
-    #
 
     def build_read_dhw_setpoint(
         self,
@@ -1061,10 +1426,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
             self.DHW_SETPOINT_ATTRIBUTE_ID,
         )
 
-    #
-    # Output type / OpenTherm detection - R
-    #
-
     def build_read_output_type(
         self,
         rid: int,
@@ -1085,7 +1446,7 @@ class ZtbinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> ZentralyOutputType:
-        """Parse the ZTBIN output type."""
+        """Parse the ZTTWZ output type."""
 
         raw_value = self._parse_read_integer_response(
             response,
@@ -1094,10 +1455,6 @@ class ZtbinCommands(ZentralyDeviceCommands):
         )
 
         return self._output_type_from_raw(raw_value)
-
-    #
-    # OpenTherm comfort mode - R/W
-    #
 
     def build_read_comfort_mode(
         self,
@@ -1150,9 +1507,9 @@ class ZtbinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> None:
-        """Validate the OpenTherm comfort-mode write response."""
+        """Validate OpenTherm comfort-mode write response."""
 
-        ZtbinCommands._parse_write_response(
+        ZttwzCommands._parse_write_response(
             response,
             expected_rid,
         )

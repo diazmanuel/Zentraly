@@ -21,7 +21,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from .api import SCAN_INTERVAL
 from .device_classes.climate.api import ZentralyClimateApi
 from .device_classes.climate.capabilities import ClimateCapability
-from .device_classes.climate.types import ClimateOperationMode
+from .device_classes.types import ClimateOperationMode
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 
@@ -438,7 +438,6 @@ class ZentralyClimate(ClimateEntity):
             return
 
         self._apply_operation_mode(operation_mode)
-
         self._update_target_temperature()
         self._update_hvac_action()
 
@@ -469,7 +468,6 @@ class ZentralyClimate(ClimateEntity):
             return
 
         self._apply_operation_mode(operation_mode)
-
         self._update_target_temperature()
         self._update_hvac_action()
 

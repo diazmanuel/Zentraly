@@ -3,18 +3,17 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from ..types import ClimateOperationMode
 from .capabilities import ClimateCapability
 from .command_protocols import (
     AwayTemperatureCommands,
     HeatDemandCommands,
     HumidityCommands,
     LocalTemperatureCommands,
-    LockCommands,
     OperationModeCommands,
     TargetTemperatureCommands,
     TemperatureOffsetCommands,
 )
-from .types import ClimateOperationMode
 
 if TYPE_CHECKING:
     from ...models import ZentralyDevice
@@ -395,76 +394,6 @@ class ZentralyClimateApi:
 
         except TypeError, ValueError:
             return None
-
-    async def async_get_lock_mode(self) -> bool | None:
-        """Return whether the device is locked."""
-
-        if not self.supports(ClimateCapability.LOCK):
-            return None
-
-        commands = cast(
-            LockCommands,
-            self._device.commands,
-        )
-
-        result = await self._device.async_execute_command(
-            lambda rid: commands.build_read_lock_mode(
-                rid=rid,
-                mac=self._device.mac,
-            )
-        )
-
-        if result is None:
-            return None
-
-        rid, response = result
-
-        try:
-            return commands.parse_lock_mode_response(
-                response,
-                rid,
-            )
-
-        except TypeError, ValueError:
-            return None
-
-    async def async_set_lock_mode(
-        self,
-        locked: bool,
-    ) -> bool:
-        """Set the device lock state."""
-
-        if not self.supports(ClimateCapability.LOCK):
-            return False
-
-        commands = cast(
-            LockCommands,
-            self._device.commands,
-        )
-
-        result = await self._device.async_execute_command(
-            lambda rid: commands.build_write_lock_mode(
-                rid=rid,
-                mac=self._device.mac,
-                locked=locked,
-            )
-        )
-
-        if result is None:
-            return False
-
-        rid, response = result
-
-        try:
-            commands.parse_write_lock_mode_response(
-                response,
-                rid,
-            )
-
-        except TypeError, ValueError:
-            return False
-
-        return True
 
     async def async_get_heat_demand(self) -> bool | None:
         """Return whether the device is requesting heat."""

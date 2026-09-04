@@ -1,4 +1,4 @@
-"""Commands for Zentraly ZTTIN devices."""
+"""Commands for Zentraly ZTREA devices."""
 
 from enum import IntEnum
 from typing import Any, override
@@ -8,12 +8,13 @@ from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.button.capabilities import ButtonCapability
 from ..device_classes.climate.capabilities import ClimateCapability
+from ..device_classes.sensor.capabilities import SensorCapability
 from ..device_classes.switch.capabilities import SwitchCapability
 from ..device_classes.types import ClimateOperationMode
 
 
-class ZttinOperationMode(IntEnum):
-    """ZTTIN operating modes."""
+class ZtreaOperationMode(IntEnum):
+    """ZTREA operating modes."""
 
     OFF = 0
     USER = 1
@@ -21,23 +22,41 @@ class ZttinOperationMode(IntEnum):
     AWAY = 3
 
 
-ZTTIN_TO_CLIMATE_OPERATION_MODE = {
-    ZttinOperationMode.OFF: ClimateOperationMode.OFF,
-    ZttinOperationMode.USER: ClimateOperationMode.MANUAL,
-    ZttinOperationMode.CRONO: ClimateOperationMode.AUTO,
-    ZttinOperationMode.AWAY: ClimateOperationMode.AWAY,
+ZTREA_TO_CLIMATE_OPERATION_MODE = {
+    ZtreaOperationMode.OFF: ClimateOperationMode.OFF,
+    ZtreaOperationMode.USER: ClimateOperationMode.MANUAL,
+    ZtreaOperationMode.CRONO: ClimateOperationMode.AUTO,
+    ZtreaOperationMode.AWAY: ClimateOperationMode.AWAY,
 }
 
-CLIMATE_TO_ZTTIN_OPERATION_MODE = {
-    climate_mode: zttin_mode
-    for zttin_mode, climate_mode in ZTTIN_TO_CLIMATE_OPERATION_MODE.items()
+CLIMATE_TO_ZTREA_OPERATION_MODE = {
+    climate_mode: ztrea_mode
+    for ztrea_mode, climate_mode in ZTREA_TO_CLIMATE_OPERATION_MODE.items()
 }
 
 
-class ZttinCommands(ZentralyDeviceCommands):
-    """Commands supported by ZTTIN devices."""
+class ZtreaCommands(ZentralyDeviceCommands):
+    """Commands supported by ZTREA devices."""
 
     ENDPOINT = 1
+
+    capabilities = frozenset(
+        {
+            # Climate
+            ClimateCapability.LOCAL_TEMPERATURE,
+            ClimateCapability.AWAY_TEMPERATURE,
+            ClimateCapability.TARGET_TEMPERATURE,
+            ClimateCapability.OPERATION_MODE,
+            ClimateCapability.HEAT_DEMAND,
+            # Switches
+            SwitchCapability.CHILD_LOCK,
+            SwitchCapability.ALWAYS_ON_DISPLAY,
+            # Sensors
+            SensorCapability.WIFI_SIGNAL_POWER,
+            # Buttons
+            ButtonCapability.RESET_DEVICE,
+        }
+    )
 
     #
     # Basic cluster
@@ -54,59 +73,50 @@ class ZttinCommands(ZentralyDeviceCommands):
     RESET_DEVICE_ATTRIBUTE_ID = 12
     RESET_DEVICE_ATTRIBUTE_TYPE = DataType.INT16
 
+    WIFI_SIGNAL_POWER_ATTRIBUTE_ID = 14
+    WIFI_SIGNAL_POWER_ATTRIBUTE_TYPE = DataType.INT16
+
     MAC_ATTRIBUTE_ID = 20
     MAC_ATTRIBUTE_TYPE = DataType.CHAR_STRING
 
     #
-    # Climate data
+    # Boiler state
     #
 
-    TEMPERATURE_CLUSTER = 65513
+    BOILER_STATE_CLUSTER = 65006
 
-    LOCAL_TEMPERATURE_ATTRIBUTE_ID = 0x00
-    HUMIDITY_ATTRIBUTE_ID = 0x01
-    TARGET_TEMPERATURE_ATTRIBUTE_ID = 0x12
-    OPERATION_MODE_ATTRIBUTE_ID = 0x1C
-    LOCAL_TEMPERATURE_OFFSET_ATTRIBUTE_ID = 0x10
-    AWAY_TEMPERATURE_ATTRIBUTE_ID = 0x11
-    CHILD_LOCK_ATTRIBUTE_ID = 0x5A
-
-    TEMPERATURE_ATTRIBUTE_TYPE = DataType.INT16
-    HUMIDITY_ATTRIBUTE_TYPE = DataType.INT16
-    OPERATION_MODE_ATTRIBUTE_TYPE = DataType.INT16
-    CHILD_LOCK_ATTRIBUTE_TYPE = DataType.INT16
+    BOILER_ON_ATTRIBUTE_ID = 0
+    BOILER_ON_ATTRIBUTE_TYPE = DataType.INT16
 
     #
-    # Heat demand
+    # Thermostat cluster
     #
 
-    HEAT_DEMAND_CLUSTER = 65006
-    HEAT_DEMAND_ATTRIBUTE_ID = 0x00
+    THERMOSTAT_CLUSTER = 65513
+
+    LOCAL_TEMPERATURE_ATTRIBUTE_ID = 0
+    LOCAL_TEMPERATURE_ATTRIBUTE_TYPE = DataType.INT16
+
+    HEAT_DEMAND_ATTRIBUTE_ID = 6
     HEAT_DEMAND_ATTRIBUTE_TYPE = DataType.INT16
 
-    #
-    # Capabilities
-    #
+    AWAY_TEMPERATURE_ATTRIBUTE_ID = 17
+    AWAY_TEMPERATURE_ATTRIBUTE_TYPE = DataType.INT16
 
-    capabilities = frozenset(
-        {
-            # Climate
-            ClimateCapability.LOCAL_TEMPERATURE,
-            ClimateCapability.TARGET_TEMPERATURE,
-            ClimateCapability.OPERATION_MODE,
-            ClimateCapability.TEMPERATURE_OFFSET,
-            ClimateCapability.AWAY_TEMPERATURE,
-            ClimateCapability.HEAT_DEMAND,
-            ClimateCapability.HUMIDITY,
-            # Switch
-            SwitchCapability.CHILD_LOCK,
-            # Button
-            ButtonCapability.RESET_DEVICE,
-        }
-    )
+    TARGET_TEMPERATURE_ATTRIBUTE_ID = 18
+    TARGET_TEMPERATURE_ATTRIBUTE_TYPE = DataType.INT16
+
+    OPERATION_MODE_ATTRIBUTE_ID = 28
+    OPERATION_MODE_ATTRIBUTE_TYPE = DataType.INT16
+
+    CHILD_LOCK_ATTRIBUTE_ID = 90
+    CHILD_LOCK_ATTRIBUTE_TYPE = DataType.INT16
+
+    ALWAYS_ON_DISPLAY_ATTRIBUTE_ID = 101
+    ALWAYS_ON_DISPLAY_ATTRIBUTE_TYPE = DataType.INT16
 
     #
-    # Generic ZTTIN helpers
+    # Generic helpers
     #
 
     @classmethod
@@ -119,7 +129,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         attribute_id: int,
         data_type: int,
     ) -> dict[str, Any]:
-        """Build a ZTTIN single-attribute read command."""
+        """Build a ZTREA single-attribute read command."""
 
         return ZentralyCommonCommands.build_read_attr(
             rid=rid,
@@ -145,7 +155,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         data_type: int,
         value: str | int,
     ) -> dict[str, Any]:
-        """Build a ZTTIN single-attribute write command."""
+        """Build a ZTREA single-attribute write command."""
 
         return ZentralyCommonCommands.build_write_attr(
             rid=rid,
@@ -176,11 +186,11 @@ class ZttinCommands(ZentralyDeviceCommands):
                 continue
 
             if "val" not in attr:
-                raise ValueError(f"Missing value for ZTTIN attribute {attribute_id}")
+                raise ValueError(f"Missing value for ZTREA attribute {attribute_id}")
 
             return attr["val"]
 
-        raise ValueError(f"ZTTIN attribute {attribute_id} not found in response")
+        raise ValueError(f"ZTREA attribute {attribute_id} not found in response")
 
     @staticmethod
     def _parse_integer(
@@ -189,7 +199,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         """Validate and return an integer attribute."""
 
         if not isinstance(value, int):
-            raise TypeError("Expected integer ZTTIN attribute value")
+            raise TypeError("Expected integer ZTREA attribute value")
 
         return value
 
@@ -199,12 +209,12 @@ class ZttinCommands(ZentralyDeviceCommands):
         value: Any,
         attribute_name: str,
     ) -> bool:
-        """Validate and convert a binary ZTTIN attribute."""
+        """Validate and convert a binary ZTREA attribute."""
 
         raw_value = cls._parse_integer(value)
 
         if raw_value not in (0, 1):
-            raise ValueError(f"Invalid ZTTIN {attribute_name} value: {raw_value}")
+            raise ValueError(f"Invalid ZTREA {attribute_name} value: {raw_value}")
 
         return raw_value == 1
 
@@ -220,34 +230,79 @@ class ZttinCommands(ZentralyDeviceCommands):
     def _temperature_to_raw(
         value: float,
     ) -> int:
-        """Convert Celsius to the ZTTIN x100 representation."""
+        """Convert Celsius to the ZTREA x100 representation."""
 
         return round(value * 100)
-
-    @staticmethod
-    def _humidity_from_raw(
-        value: int,
-    ) -> float:
-        """Validate and convert humidity to percentage."""
-
-        if not 0 <= value <= 100:
-            raise ValueError(f"Invalid ZTTIN humidity value: {value}")
-
-        return float(value)
 
     @staticmethod
     def _operation_mode_from_raw(
         value: int,
     ) -> ClimateOperationMode:
-        """Convert a raw ZTTIN operation mode."""
+        """Convert a raw ZTREA operation mode."""
 
         try:
-            zttin_mode = ZttinOperationMode(value)
+            ztrea_mode = ZtreaOperationMode(value)
 
         except ValueError as err:
-            raise ValueError(f"Unsupported ZTTIN operation mode: {value}") from err
+            raise ValueError(f"Unsupported ZTREA operation mode: {value}") from err
 
-        return ZTTIN_TO_CLIMATE_OPERATION_MODE[zttin_mode]
+        return ZTREA_TO_CLIMATE_OPERATION_MODE[ztrea_mode]
+
+    @classmethod
+    def _parse_read_integer_response(
+        cls,
+        response: dict[str, Any],
+        expected_rid: int,
+        attribute_id: int,
+    ) -> int:
+        """Parse an integer attribute response."""
+
+        attrs = ZentralyCommonCommands.parse_read_attr_response(
+            response,
+            expected_rid,
+        )
+
+        return cls._parse_integer(
+            cls._parse_attribute_value(
+                attrs,
+                attribute_id,
+            )
+        )
+
+    @classmethod
+    def _parse_read_binary_response(
+        cls,
+        response: dict[str, Any],
+        expected_rid: int,
+        attribute_id: int,
+        attribute_name: str,
+    ) -> bool:
+        """Parse a binary attribute response."""
+
+        attrs = ZentralyCommonCommands.parse_read_attr_response(
+            response,
+            expected_rid,
+        )
+
+        return cls._parse_binary_value(
+            cls._parse_attribute_value(
+                attrs,
+                attribute_id,
+            ),
+            attribute_name,
+        )
+
+    @staticmethod
+    def _parse_write_response(
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> None:
+        """Validate a ZTREA write response."""
+
+        ZentralyCommonCommands.parse_write_attr_response(
+            response,
+            expected_rid,
+        )
 
     #
     # Reports
@@ -257,7 +312,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         self,
         entry: dict[str, Any],
     ) -> tuple[ClimateCapability | SwitchCapability, Any] | None:
-        """Parse a supported ZTTIN report entry."""
+        """Parse a supported ZTREA report entry."""
 
         if entry.get("mac") not in (None, "") and not isinstance(
             entry.get("mac"),
@@ -282,68 +337,18 @@ class ZttinCommands(ZentralyDeviceCommands):
 
         value = entry["val"]
 
-        if cluster == self.TEMPERATURE_CLUSTER:
-            if attribute_id == self.LOCAL_TEMPERATURE_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
+        if cluster != self.THERMOSTAT_CLUSTER:
+            return None
 
-                return (
-                    ClimateCapability.LOCAL_TEMPERATURE,
-                    self._temperature_from_raw(raw_value),
-                )
+        if attribute_id == self.LOCAL_TEMPERATURE_ATTRIBUTE_ID:
+            return (
+                ClimateCapability.LOCAL_TEMPERATURE,
+                self._temperature_from_raw(
+                    self._parse_integer(value),
+                ),
+            )
 
-            if attribute_id == self.HUMIDITY_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.HUMIDITY,
-                    self._humidity_from_raw(raw_value),
-                )
-
-            if attribute_id == self.TARGET_TEMPERATURE_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.TARGET_TEMPERATURE,
-                    self._temperature_from_raw(raw_value),
-                )
-
-            if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.OPERATION_MODE,
-                    self._operation_mode_from_raw(raw_value),
-                )
-
-            if attribute_id == self.LOCAL_TEMPERATURE_OFFSET_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.TEMPERATURE_OFFSET,
-                    self._temperature_from_raw(raw_value),
-                )
-
-            if attribute_id == self.AWAY_TEMPERATURE_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.AWAY_TEMPERATURE,
-                    self._temperature_from_raw(raw_value),
-                )
-
-            if attribute_id == self.CHILD_LOCK_ATTRIBUTE_ID:
-                return (
-                    SwitchCapability.CHILD_LOCK,
-                    self._parse_binary_value(
-                        value,
-                        "child lock",
-                    ),
-                )
-
-        if (
-            cluster == self.HEAT_DEMAND_CLUSTER
-            and attribute_id == self.HEAT_DEMAND_ATTRIBUTE_ID
-        ):
+        if attribute_id == self.HEAT_DEMAND_ATTRIBUTE_ID:
             return (
                 ClimateCapability.HEAT_DEMAND,
                 self._parse_binary_value(
@@ -352,10 +357,43 @@ class ZttinCommands(ZentralyDeviceCommands):
                 ),
             )
 
+        if attribute_id == self.AWAY_TEMPERATURE_ATTRIBUTE_ID:
+            return (
+                ClimateCapability.AWAY_TEMPERATURE,
+                self._temperature_from_raw(
+                    self._parse_integer(value),
+                ),
+            )
+
+        if attribute_id == self.TARGET_TEMPERATURE_ATTRIBUTE_ID:
+            return (
+                ClimateCapability.TARGET_TEMPERATURE,
+                self._temperature_from_raw(
+                    self._parse_integer(value),
+                ),
+            )
+
+        if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
+            return (
+                ClimateCapability.OPERATION_MODE,
+                self._operation_mode_from_raw(
+                    self._parse_integer(value),
+                ),
+            )
+
+        if attribute_id == self.CHILD_LOCK_ATTRIBUTE_ID:
+            return (
+                SwitchCapability.CHILD_LOCK,
+                self._parse_binary_value(
+                    value,
+                    "child lock",
+                ),
+            )
+
         return None
 
     #
-    # MAC address - Zeroconf discovery
+    # Device MAC - Zeroconf discovery
     #
 
     @override
@@ -363,7 +401,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         self,
         rid: int,
     ) -> dict[str, Any]:
-        """Return the command to read the device MAC."""
+        """Return the command to read the ZTREA MAC address."""
 
         return self._build_read_attribute(
             rid=rid,
@@ -379,7 +417,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> str:
-        """Parse the MAC address from a ZTTIN response."""
+        """Parse the MAC address from a ZTREA response."""
 
         attrs = ZentralyCommonCommands.parse_read_attr_response(
             response,
@@ -392,7 +430,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         )
 
         if not isinstance(mac, str) or not mac:
-            raise ValueError("Invalid ZTTIN MAC address")
+            raise ValueError("Invalid ZTREA MAC address")
 
         return mac
 
@@ -433,7 +471,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         )
 
         if not isinstance(value, str) or not value:
-            raise ValueError("Invalid ZTTIN firmware version")
+            raise ValueError("Invalid ZTREA firmware version")
 
         return value
 
@@ -474,7 +512,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         )
 
         if not isinstance(value, str) or not value:
-            raise ValueError("Invalid ZTTIN hardware version")
+            raise ValueError("Invalid ZTREA hardware version")
 
         return value
 
@@ -505,9 +543,77 @@ class ZttinCommands(ZentralyDeviceCommands):
     ) -> None:
         """Validate the device-reset response."""
 
-        ZentralyCommonCommands.parse_write_attr_response(
+        ZtreaCommands._parse_write_response(
             response,
             expected_rid,
+        )
+
+    #
+    # Wi-Fi signal power - R
+    #
+
+    def build_read_wifi_signal_power(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the Wi-Fi signal-power read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.BASIC_CLUSTER,
+            attribute_id=self.WIFI_SIGNAL_POWER_ATTRIBUTE_ID,
+            data_type=self.WIFI_SIGNAL_POWER_ATTRIBUTE_TYPE,
+        )
+
+    def parse_wifi_signal_power_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> int:
+        """Parse Wi-Fi signal power in dBm."""
+
+        return self._parse_read_integer_response(
+            response,
+            expected_rid,
+            self.WIFI_SIGNAL_POWER_ATTRIBUTE_ID,
+        )
+
+    #
+    # Boiler state - R
+    #
+    # Implemented at command level, but intentionally has no capability
+    # and does not currently generate a Home Assistant entity.
+    #
+
+    def build_read_boiler_on(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the boiler-state read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.BOILER_STATE_CLUSTER,
+            attribute_id=self.BOILER_ON_ATTRIBUTE_ID,
+            data_type=self.BOILER_ON_ATTRIBUTE_TYPE,
+        )
+
+    def parse_boiler_on_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> bool:
+        """Parse whether the boiler state is on."""
+
+        return self._parse_read_binary_response(
+            response,
+            expected_rid,
+            self.BOILER_ON_ATTRIBUTE_ID,
+            "boiler state",
         )
 
     #
@@ -519,14 +625,14 @@ class ZttinCommands(ZentralyDeviceCommands):
         rid: int,
         mac: str,
     ) -> dict[str, Any]:
-        """Build the local temperature read command."""
+        """Build the local-temperature read command."""
 
         return self._build_read_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
+            cluster=self.THERMOSTAT_CLUSTER,
             attribute_id=self.LOCAL_TEMPERATURE_ATTRIBUTE_ID,
-            data_type=self.TEMPERATURE_ATTRIBUTE_TYPE,
+            data_type=self.LOCAL_TEMPERATURE_ATTRIBUTE_TYPE,
         )
 
     def parse_local_temperature_response(
@@ -536,59 +642,47 @@ class ZttinCommands(ZentralyDeviceCommands):
     ) -> float:
         """Parse local temperature in Celsius."""
 
-        attrs = ZentralyCommonCommands.parse_read_attr_response(
+        raw_value = self._parse_read_integer_response(
             response,
             expected_rid,
+            self.LOCAL_TEMPERATURE_ATTRIBUTE_ID,
         )
 
-        value = self._parse_integer(
-            self._parse_attribute_value(
-                attrs,
-                self.LOCAL_TEMPERATURE_ATTRIBUTE_ID,
-            )
-        )
-
-        return self._temperature_from_raw(value)
+        return self._temperature_from_raw(raw_value)
 
     #
-    # Humidity - R
+    # Away temperature - R
     #
 
-    def build_read_humidity(
+    def build_read_away_temperature(
         self,
         rid: int,
         mac: str,
     ) -> dict[str, Any]:
-        """Build the humidity read command."""
+        """Build the away-temperature read command."""
 
         return self._build_read_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
-            attribute_id=self.HUMIDITY_ATTRIBUTE_ID,
-            data_type=self.HUMIDITY_ATTRIBUTE_TYPE,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.AWAY_TEMPERATURE_ATTRIBUTE_ID,
+            data_type=self.AWAY_TEMPERATURE_ATTRIBUTE_TYPE,
         )
 
-    def parse_humidity_response(
+    def parse_away_temperature_response(
         self,
         response: dict[str, Any],
         expected_rid: int,
     ) -> float:
-        """Parse relative humidity percentage."""
+        """Parse away temperature in Celsius."""
 
-        attrs = ZentralyCommonCommands.parse_read_attr_response(
+        raw_value = self._parse_read_integer_response(
             response,
             expected_rid,
+            self.AWAY_TEMPERATURE_ATTRIBUTE_ID,
         )
 
-        value = self._parse_integer(
-            self._parse_attribute_value(
-                attrs,
-                self.HUMIDITY_ATTRIBUTE_ID,
-            )
-        )
-
-        return self._humidity_from_raw(value)
+        return self._temperature_from_raw(raw_value)
 
     #
     # Target temperature - R/W
@@ -599,14 +693,14 @@ class ZttinCommands(ZentralyDeviceCommands):
         rid: int,
         mac: str,
     ) -> dict[str, Any]:
-        """Build the target temperature read command."""
+        """Build the target-temperature read command."""
 
         return self._build_read_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
+            cluster=self.THERMOSTAT_CLUSTER,
             attribute_id=self.TARGET_TEMPERATURE_ATTRIBUTE_ID,
-            data_type=self.TEMPERATURE_ATTRIBUTE_TYPE,
+            data_type=self.TARGET_TEMPERATURE_ATTRIBUTE_TYPE,
         )
 
     def parse_target_temperature_response(
@@ -616,19 +710,13 @@ class ZttinCommands(ZentralyDeviceCommands):
     ) -> float:
         """Parse target temperature in Celsius."""
 
-        attrs = ZentralyCommonCommands.parse_read_attr_response(
+        raw_value = self._parse_read_integer_response(
             response,
             expected_rid,
+            self.TARGET_TEMPERATURE_ATTRIBUTE_ID,
         )
 
-        value = self._parse_integer(
-            self._parse_attribute_value(
-                attrs,
-                self.TARGET_TEMPERATURE_ATTRIBUTE_ID,
-            )
-        )
-
-        return self._temperature_from_raw(value)
+        return self._temperature_from_raw(raw_value)
 
     def build_write_target_temperature(
         self,
@@ -636,7 +724,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         mac: str,
         temperature: float,
     ) -> dict[str, Any]:
-        """Build the target temperature write command."""
+        """Build the target-temperature write command."""
 
         raw_temperature = self._temperature_to_raw(temperature)
 
@@ -649,9 +737,9 @@ class ZttinCommands(ZentralyDeviceCommands):
         return self._build_write_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
+            cluster=self.THERMOSTAT_CLUSTER,
             attribute_id=self.TARGET_TEMPERATURE_ATTRIBUTE_ID,
-            data_type=self.TEMPERATURE_ATTRIBUTE_TYPE,
+            data_type=self.TARGET_TEMPERATURE_ATTRIBUTE_TYPE,
             value=raw_temperature,
         )
 
@@ -660,9 +748,9 @@ class ZttinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> None:
-        """Validate target temperature write response."""
+        """Validate target-temperature write response."""
 
-        ZentralyCommonCommands.parse_write_attr_response(
+        ZtreaCommands._parse_write_response(
             response,
             expected_rid,
         )
@@ -676,12 +764,12 @@ class ZttinCommands(ZentralyDeviceCommands):
         rid: int,
         mac: str,
     ) -> dict[str, Any]:
-        """Build the operation mode read command."""
+        """Build the operation-mode read command."""
 
         return self._build_read_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
+            cluster=self.THERMOSTAT_CLUSTER,
             attribute_id=self.OPERATION_MODE_ATTRIBUTE_ID,
             data_type=self.OPERATION_MODE_ATTRIBUTE_TYPE,
         )
@@ -691,21 +779,15 @@ class ZttinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> ClimateOperationMode:
-        """Parse the ZTTIN operation mode."""
+        """Parse the ZTREA operation mode."""
 
-        attrs = ZentralyCommonCommands.parse_read_attr_response(
+        raw_value = self._parse_read_integer_response(
             response,
             expected_rid,
+            self.OPERATION_MODE_ATTRIBUTE_ID,
         )
 
-        value = self._parse_integer(
-            self._parse_attribute_value(
-                attrs,
-                self.OPERATION_MODE_ATTRIBUTE_ID,
-            )
-        )
-
-        return self._operation_mode_from_raw(value)
+        return self._operation_mode_from_raw(raw_value)
 
     def build_write_operation_mode(
         self,
@@ -713,23 +795,23 @@ class ZttinCommands(ZentralyDeviceCommands):
         mac: str,
         mode: ClimateOperationMode,
     ) -> dict[str, Any]:
-        """Build the operation mode write command."""
+        """Build the operation-mode write command."""
 
         try:
-            zttin_mode = CLIMATE_TO_ZTTIN_OPERATION_MODE[mode]
+            ztrea_mode = CLIMATE_TO_ZTREA_OPERATION_MODE[mode]
 
         except KeyError as err:
             raise ValueError(
-                f"Unsupported climate operation mode for ZTTIN: {mode}"
+                f"Unsupported climate operation mode for ZTREA: {mode}"
             ) from err
 
         return self._build_write_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
+            cluster=self.THERMOSTAT_CLUSTER,
             attribute_id=self.OPERATION_MODE_ATTRIBUTE_ID,
             data_type=self.OPERATION_MODE_ATTRIBUTE_TYPE,
-            value=int(zttin_mode),
+            value=int(ztrea_mode),
         )
 
     @staticmethod
@@ -737,126 +819,12 @@ class ZttinCommands(ZentralyDeviceCommands):
         response: dict[str, Any],
         expected_rid: int,
     ) -> None:
-        """Validate operation mode write response."""
+        """Validate operation-mode write response."""
 
-        ZentralyCommonCommands.parse_write_attr_response(
+        ZtreaCommands._parse_write_response(
             response,
             expected_rid,
         )
-
-    #
-    # Local temperature offset - R/W
-    #
-
-    def build_read_local_temperature_offset(
-        self,
-        rid: int,
-        mac: str,
-    ) -> dict[str, Any]:
-        """Build the local temperature offset read command."""
-
-        return self._build_read_attribute(
-            rid=rid,
-            mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
-            attribute_id=self.LOCAL_TEMPERATURE_OFFSET_ATTRIBUTE_ID,
-            data_type=self.TEMPERATURE_ATTRIBUTE_TYPE,
-        )
-
-    def parse_local_temperature_offset_response(
-        self,
-        response: dict[str, Any],
-        expected_rid: int,
-    ) -> float:
-        """Parse local temperature offset in Celsius."""
-
-        attrs = ZentralyCommonCommands.parse_read_attr_response(
-            response,
-            expected_rid,
-        )
-
-        value = self._parse_integer(
-            self._parse_attribute_value(
-                attrs,
-                self.LOCAL_TEMPERATURE_OFFSET_ATTRIBUTE_ID,
-            )
-        )
-
-        return self._temperature_from_raw(value)
-
-    def build_write_local_temperature_offset(
-        self,
-        rid: int,
-        mac: str,
-        offset: float,
-    ) -> dict[str, Any]:
-        """Build the local temperature offset write command."""
-
-        raw_offset = self._temperature_to_raw(offset)
-
-        if not -600 <= raw_offset <= 600:
-            raise ValueError("Local temperature offset must be between -6 and 6 °C")
-
-        return self._build_write_attribute(
-            rid=rid,
-            mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
-            attribute_id=self.LOCAL_TEMPERATURE_OFFSET_ATTRIBUTE_ID,
-            data_type=self.TEMPERATURE_ATTRIBUTE_TYPE,
-            value=raw_offset,
-        )
-
-    @staticmethod
-    def parse_write_local_temperature_offset_response(
-        response: dict[str, Any],
-        expected_rid: int,
-    ) -> None:
-        """Validate local temperature offset write response."""
-
-        ZentralyCommonCommands.parse_write_attr_response(
-            response,
-            expected_rid,
-        )
-
-    #
-    # Away temperature - R
-    #
-
-    def build_read_away_temperature(
-        self,
-        rid: int,
-        mac: str,
-    ) -> dict[str, Any]:
-        """Build the away temperature read command."""
-
-        return self._build_read_attribute(
-            rid=rid,
-            mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
-            attribute_id=self.AWAY_TEMPERATURE_ATTRIBUTE_ID,
-            data_type=self.TEMPERATURE_ATTRIBUTE_TYPE,
-        )
-
-    def parse_away_temperature_response(
-        self,
-        response: dict[str, Any],
-        expected_rid: int,
-    ) -> float:
-        """Parse away temperature in Celsius."""
-
-        attrs = ZentralyCommonCommands.parse_read_attr_response(
-            response,
-            expected_rid,
-        )
-
-        value = self._parse_integer(
-            self._parse_attribute_value(
-                attrs,
-                self.AWAY_TEMPERATURE_ATTRIBUTE_ID,
-            )
-        )
-
-        return self._temperature_from_raw(value)
 
     #
     # Child lock - R/W
@@ -872,7 +840,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         return self._build_read_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
+            cluster=self.THERMOSTAT_CLUSTER,
             attribute_id=self.CHILD_LOCK_ATTRIBUTE_ID,
             data_type=self.CHILD_LOCK_ATTRIBUTE_TYPE,
         )
@@ -884,16 +852,10 @@ class ZttinCommands(ZentralyDeviceCommands):
     ) -> bool:
         """Parse the child-lock state."""
 
-        attrs = ZentralyCommonCommands.parse_read_attr_response(
+        return self._parse_read_binary_response(
             response,
             expected_rid,
-        )
-
-        return self._parse_binary_value(
-            self._parse_attribute_value(
-                attrs,
-                self.CHILD_LOCK_ATTRIBUTE_ID,
-            ),
+            self.CHILD_LOCK_ATTRIBUTE_ID,
             "child lock",
         )
 
@@ -908,7 +870,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         return self._build_write_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.TEMPERATURE_CLUSTER,
+            cluster=self.THERMOSTAT_CLUSTER,
             attribute_id=self.CHILD_LOCK_ATTRIBUTE_ID,
             data_type=self.CHILD_LOCK_ATTRIBUTE_TYPE,
             value=int(enabled),
@@ -921,7 +883,7 @@ class ZttinCommands(ZentralyDeviceCommands):
     ) -> None:
         """Validate child-lock write response."""
 
-        ZentralyCommonCommands.parse_write_attr_response(
+        ZtreaCommands._parse_write_response(
             response,
             expected_rid,
         )
@@ -935,12 +897,12 @@ class ZttinCommands(ZentralyDeviceCommands):
         rid: int,
         mac: str,
     ) -> dict[str, Any]:
-        """Build the heat demand read command."""
+        """Build the heat-demand read command."""
 
         return self._build_read_attribute(
             rid=rid,
             mac=mac,
-            cluster=self.HEAT_DEMAND_CLUSTER,
+            cluster=self.THERMOSTAT_CLUSTER,
             attribute_id=self.HEAT_DEMAND_ATTRIBUTE_ID,
             data_type=self.HEAT_DEMAND_ATTRIBUTE_TYPE,
         )
@@ -952,15 +914,71 @@ class ZttinCommands(ZentralyDeviceCommands):
     ) -> bool:
         """Parse whether the thermostat is requesting heat."""
 
-        attrs = ZentralyCommonCommands.parse_read_attr_response(
+        return self._parse_read_binary_response(
             response,
             expected_rid,
+            self.HEAT_DEMAND_ATTRIBUTE_ID,
+            "heat demand",
         )
 
-        return self._parse_binary_value(
-            self._parse_attribute_value(
-                attrs,
-                self.HEAT_DEMAND_ATTRIBUTE_ID,
-            ),
-            "heat demand",
+    #
+    # Always-on display - R/W
+    #
+
+    def build_read_always_on_display(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the always-on-display read command."""
+
+        return self._build_read_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.ALWAYS_ON_DISPLAY_ATTRIBUTE_ID,
+            data_type=self.ALWAYS_ON_DISPLAY_ATTRIBUTE_TYPE,
+        )
+
+    def parse_always_on_display_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> bool:
+        """Parse the always-on-display state."""
+
+        return self._parse_read_binary_response(
+            response,
+            expected_rid,
+            self.ALWAYS_ON_DISPLAY_ATTRIBUTE_ID,
+            "always-on display",
+        )
+
+    def build_write_always_on_display(
+        self,
+        rid: int,
+        mac: str,
+        enabled: bool,
+    ) -> dict[str, Any]:
+        """Build the always-on-display write command."""
+
+        return self._build_write_attribute(
+            rid=rid,
+            mac=mac,
+            cluster=self.THERMOSTAT_CLUSTER,
+            attribute_id=self.ALWAYS_ON_DISPLAY_ATTRIBUTE_ID,
+            data_type=self.ALWAYS_ON_DISPLAY_ATTRIBUTE_TYPE,
+            value=int(enabled),
+        )
+
+    @staticmethod
+    def parse_write_always_on_display_response(
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> None:
+        """Validate always-on-display write response."""
+
+        ZtreaCommands._parse_write_response(
+            response,
+            expected_rid,
         )

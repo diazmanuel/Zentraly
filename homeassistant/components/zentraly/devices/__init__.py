@@ -3,7 +3,10 @@
 from ..commands.base import ZentralyDeviceCommands
 from .device import DeviceModel
 from .ztbin import ZtbinCommands
+from .zteim import ZteimCommands
+from .ztrea import ZtreaCommands
 from .zttin import ZttinCommands
+from .zttwz import ZttwzCommands
 
 DEVICE_COMMANDS: dict[
     DeviceModel,
@@ -11,6 +14,9 @@ DEVICE_COMMANDS: dict[
 ] = {
     DeviceModel.ZTTIN: ZttinCommands,
     DeviceModel.ZTBIN: ZtbinCommands,
+    DeviceModel.ZTTWZ: ZttwzCommands,
+    DeviceModel.ZTREA: ZtreaCommands,
+    DeviceModel.ZTEIM: ZteimCommands,
 }
 
 

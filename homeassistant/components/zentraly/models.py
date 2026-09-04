@@ -5,11 +5,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .api import CommandResult, ConnectionStateListener, ReportListener, ZentralyApi
 from .commands.base import ZentralyDeviceCommands
 from .const import DOMAIN
+from .device_classes.types import ZentralyOutputType
 from .devices.device import DeviceModel
 
 
@@ -23,6 +25,10 @@ class ZentralyDevice:
     device_model: DeviceModel
     commands: ZentralyDeviceCommands
     via_device_id: str | None = None
+
+    output_type: ZentralyOutputType | None = None
+    firmware_version: str | None = None
+    hardware_version: str | None = None
 
     @property
     def connected(self) -> bool:
@@ -53,16 +59,35 @@ class ZentralyDevice:
                     self.device_id,
                 )
             },
+            connections={
+                (
+                    dr.CONNECTION_NETWORK_MAC,
+                    self.mac,
+                )
+            },
             manufacturer="Zentraly",
             model=self.model,
             name=self.device_id,
+            serial_number=self.device_id,
             configuration_url=self.configuration_url,
         )
+
+        if self.firmware_version is not None:
+            device_info["sw_version"] = self.firmware_version
+
+        if self.hardware_version is not None:
+            device_info["hw_version"] = self.hardware_version
 
         if self.via_device_id is not None:
             device_info["via_device_id"] = self.via_device_id
 
         return device_info
+
+    @property
+    def opentherm_connected(self) -> bool:
+        """Return whether the device is using OpenTherm."""
+
+        return self.output_type is ZentralyOutputType.OPENTHERM
 
     def supports(
         self,

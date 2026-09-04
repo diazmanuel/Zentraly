@@ -1,52 +1,36 @@
-"""Binary sensor platform for Zentraly."""
+"""Select platform for Zentraly."""
 
 from datetime import datetime
 from typing import Any, override
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.const import EntityCategory
+from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
 from .api import SCAN_INTERVAL
-from .device_classes.binary_sensor.api import ZentralyBinarySensorApi
-from .device_classes.binary_sensor.capabilities import BinarySensorCapability
+from .device_classes.select.api import ZentralySelectApi
+from .device_classes.select.capabilities import SelectCapability
+from .device_classes.types import SelectOperationMode
 from .models import ZentralyConfigEntry, ZentralyDevice
 
-_OPENTHERM_CAPABILITIES = frozenset(
-    {
-        BinarySensorCapability.OT_HEATING_WATER_ACTIVE,
-        BinarySensorCapability.OT_DHW_ENABLED,
-        BinarySensorCapability.OT_WINTER_MODE,
-    }
-)
 
-_DIAGNOSTIC_CAPABILITIES = frozenset(
-    {
-        BinarySensorCapability.OT_HEATING_WATER_ACTIVE,
-        BinarySensorCapability.OT_DHW_ENABLED,
-        BinarySensorCapability.OT_WINTER_MODE,
-    }
-)
-
-
-def _create_binary_sensor_entities(
+def _create_select_entities(
     device: ZentralyDevice,
-) -> list[ZentralyBinarySensor]:
-    """Create binary sensor entities supported by a Zentraly device."""
+) -> list[ZentralySelect]:
+    """Create select entities supported by a Zentraly device."""
 
-    binary_sensor_api = ZentralyBinarySensorApi(device)
+    select_api = ZentralySelectApi(device)
 
     return [
-        ZentralyBinarySensor(
+        ZentralySelect(
             device=device,
-            binary_sensor_api=binary_sensor_api,
+            select_api=select_api,
             capability=capability,
         )
-        for capability in BinarySensorCapability
-        if binary_sensor_api.supports(capability)
+        for capability in SelectCapability
+        if select_api.supports(capability)
     ]
 
 
@@ -55,9 +39,9 @@ async def async_setup_entry(
     entry: ZentralyConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Zentraly binary sensor entities."""
+    """Set up Zentraly select entities."""
 
-    parent_entities = _create_binary_sensor_entities(
+    parent_entities = _create_select_entities(
         entry.runtime_data.device,
     )
 
@@ -68,7 +52,7 @@ async def async_setup_entry(
         )
 
     for subentry_id, child in entry.runtime_data.children.items():
-        child_entities = _create_binary_sensor_entities(
+        child_entities = _create_select_entities(
             child,
         )
 
@@ -82,8 +66,8 @@ async def async_setup_entry(
         )
 
 
-class ZentralyBinarySensor(BinarySensorEntity):
-    """Representation of a Zentraly binary sensor."""
+class ZentralySelect(SelectEntity):
+    """Representation of a Zentraly select."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
@@ -92,20 +76,21 @@ class ZentralyBinarySensor(BinarySensorEntity):
         self,
         *,
         device: ZentralyDevice,
-        binary_sensor_api: ZentralyBinarySensorApi,
-        capability: BinarySensorCapability,
+        select_api: ZentralySelectApi,
+        capability: SelectCapability,
     ) -> None:
-        """Initialize the Zentraly binary sensor."""
+        """Initialize the Zentraly select."""
 
         self._device = device
-        self._binary_sensor_api = binary_sensor_api
+        self._select_api = select_api
         self._capability = capability
 
         self._attr_unique_id = f"{device.device_id}_{capability.value}"
         self._attr_translation_key = capability.value
 
-        if capability in _DIAGNOSTIC_CAPABILITIES:
-            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_options = [
+            option.value for option in select_api.get_options(capability)
+        ]
 
     @override
     async def async_added_to_hass(self) -> None:
@@ -118,7 +103,7 @@ class ZentralyBinarySensor(BinarySensorEntity):
         )
 
         self.async_on_remove(
-            self._binary_sensor_api.add_state_listener(self._handle_state_update)
+            self._select_api.add_state_listener(self._handle_state_update)
         )
 
         self.async_on_remove(
@@ -133,7 +118,7 @@ class ZentralyBinarySensor(BinarySensorEntity):
         self,
         now: datetime,
     ) -> None:
-        """Refresh binary sensor state periodically."""
+        """Refresh select state periodically."""
 
         await self.async_update()
         self.async_write_ha_state()
@@ -154,59 +139,78 @@ class ZentralyBinarySensor(BinarySensorEntity):
 
     def _handle_state_update(
         self,
-        updates: dict[BinarySensorCapability, Any],
+        updates: dict[SelectCapability, Any],
     ) -> None:
-        """Handle binary sensor updates received from Zentraly reports."""
+        """Handle select updates received from Zentraly reports."""
 
         if self._capability not in updates:
             return
 
         value = updates[self._capability]
 
-        if value is None and self._capability in _OPENTHERM_CAPABILITIES:
-            self._attr_is_on = None
+        if not isinstance(value, SelectOperationMode):
+            return
+
+        option = value.value
+
+        if option not in self._attr_options:
+            self._attr_current_option = None
             self.async_write_ha_state()
             return
 
-        if not isinstance(value, bool):
-            return
-
-        self._attr_is_on = value
+        self._attr_current_option = option
         self.async_write_ha_state()
 
     async def async_update(self) -> None:
-        """Update binary sensor state from the Zentraly device."""
+        """Update select state from the Zentraly device."""
 
         self._attr_available = self._device.connected
 
         if not self._device.connected:
             return
 
-        if (
-            self._capability in _OPENTHERM_CAPABILITIES
-            and not self._device.opentherm_connected
-        ):
-            self._attr_is_on = None
+        if self._capability is not SelectCapability.OPERATION_MODE:
             return
 
-        value: bool | None
+        value = await self._select_api.async_get_operation_mode()
 
-        if self._capability is BinarySensorCapability.BOILER_ON:
-            value = await self._binary_sensor_api.async_get_boiler_on()
-
-        elif self._capability is BinarySensorCapability.OT_HEATING_WATER_ACTIVE:
-            value = await self._binary_sensor_api.async_get_ot_heating_water_active()
-
-        elif self._capability is BinarySensorCapability.OT_DHW_ENABLED:
-            value = await self._binary_sensor_api.async_get_ot_dhw_enabled()
-
-        elif self._capability is BinarySensorCapability.OT_WINTER_MODE:
-            value = await self._binary_sensor_api.async_get_ot_winter_mode()
-
-        else:
+        if value is None:
             return
 
-        self._attr_is_on = value
+        option = value.value
+
+        if option not in self._attr_options:
+            self._attr_current_option = None
+            return
+
+        self._attr_current_option = option
+
+    @override
+    async def async_select_option(
+        self,
+        option: str,
+    ) -> None:
+        """Select a Zentraly option."""
+
+        if not self._device.connected:
+            return
+
+        try:
+            mode = SelectOperationMode(option)
+
+        except ValueError:
+            return
+
+        if self._capability is not SelectCapability.OPERATION_MODE:
+            return
+
+        success = await self._select_api.async_set_operation_mode(mode)
+
+        if not success:
+            return
+
+        self._attr_current_option = mode.value
+        self.async_write_ha_state()
 
     @property
     @override

@@ -11,6 +11,5 @@ class ClimateCapability(Enum):
     OPERATION_MODE = "operation_mode"
     TEMPERATURE_OFFSET = "temperature_offset"
     AWAY_TEMPERATURE = "away_temperature"
-    LOCK = "lock"
     HEAT_DEMAND = "heat_demand"
     HUMIDITY = "humidity"

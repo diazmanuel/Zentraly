@@ -33,6 +33,7 @@ pytestmark = pytest.mark.usefixtures("mock_setup_entry")
 
 DEVICE_ID = "ZTTIN0100000631"
 CHILD_DEVICE_ID = "ZTBIN0100000021"
+ZTEIM_DEVICE_ID = "ZTEIM0100000001"
 UNKNOWN_DEVICE_ID = "ZZZZZ0100000001"
 
 HOST = "192.168.1.42"
@@ -43,6 +44,8 @@ NEW_PORT = 12346
 
 MAC = "dcda0c58c8d8"
 CHILD_MAC = "1020ba12316c"
+ZTEIM_MAC = "aabbccddeeff"
+
 PASSWORD = "test-password"
 
 
@@ -88,15 +91,26 @@ def _parent_entry(
     )
 
 
+@pytest.mark.parametrize(
+    ("device_id", "mac"),
+    [
+        (DEVICE_ID, MAC),
+        (ZTEIM_DEVICE_ID, ZTEIM_MAC),
+    ],
+)
 async def test_zeroconf_auth_success(
     hass: HomeAssistant,
+    device_id: str,
+    mac: str,
 ) -> None:
     """Test successful Zeroconf discovery and authentication."""
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_ZEROCONF},
-        data=_zeroconf_info(),
+        data=_zeroconf_info(
+            device_id=device_id,
+        ),
     )
 
     assert result["type"] is FlowResultType.FORM
@@ -106,7 +120,7 @@ async def test_zeroconf_auth_success(
         "homeassistant.components.zentraly.config_flow."
         "ZentralyApi.async_validate_password",
         new_callable=AsyncMock,
-        return_value=MAC,
+        return_value=mac,
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -114,14 +128,14 @@ async def test_zeroconf_auth_success(
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == DEVICE_ID
+    assert result["title"] == device_id
 
     assert result["data"] == {
         CONF_HOST: HOST,
         CONF_PORT: PORT,
-        CONF_DEVICE_ID: DEVICE_ID,
+        CONF_DEVICE_ID: device_id,
         CONF_PASSWORD: PASSWORD,
-        CONF_MAC: MAC,
+        CONF_MAC: mac,
     }
 
 
@@ -345,6 +359,28 @@ async def test_parent_at_child_limit_does_not_support_more_subentries(
     assert supported_types == {}
 
 
+async def test_zteim_does_not_support_child_subentries(
+    hass: HomeAssistant,
+) -> None:
+    """Test ZTEIM does not expose child-device subentries."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=ZTEIM_DEVICE_ID,
+        data={
+            CONF_HOST: HOST,
+            CONF_PORT: PORT,
+            CONF_DEVICE_ID: ZTEIM_DEVICE_ID,
+            CONF_PASSWORD: PASSWORD,
+            CONF_MAC: ZTEIM_MAC,
+        },
+    )
+
+    supported_types = ZentralyConfigFlow.async_get_supported_subentry_types(entry)
+
+    assert supported_types == {}
+
+
 async def test_child_device_success(
     hass: HomeAssistant,
 ) -> None:
@@ -540,6 +576,42 @@ async def test_child_device_unknown_model(
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "unsupported_device"}
+
+    mock_validate.assert_not_awaited()
+
+
+async def test_zteim_cannot_be_added_as_child(
+    hass: HomeAssistant,
+) -> None:
+    """Test ZTEIM cannot be configured as a child of ZTTIN."""
+
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+
+    mock_validate = AsyncMock()
+
+    entry.runtime_data = SimpleNamespace(
+        api=SimpleNamespace(async_validate_child_device=mock_validate)
+    )
+
+    result = await hass.config_entries.subentries.async_init(
+        (
+            entry.entry_id,
+            SUBENTRY_TYPE_DEVICE,
+        ),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={
+            CONF_DEVICE_ID: ZTEIM_DEVICE_ID,
+            CONF_MAC: ZTEIM_MAC,
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "unsupported_child"}
 
     mock_validate.assert_not_awaited()
 

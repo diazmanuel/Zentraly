@@ -11,6 +11,9 @@ class DeviceModel(Enum):
 
     ZTTIN = "zttin"
     ZTBIN = "ztbin"
+    ZTTWZ = "zttwz"
+    ZTREA = "ztrea"
+    ZTEIM = "zteim"
     UNKNOWN = "unknown"
 
 
@@ -29,7 +32,9 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
         "model": DeviceModel.ZTTIN,
         "platforms": frozenset(
             {
+                Platform.BUTTON,
                 Platform.CLIMATE,
+                Platform.SWITCH,
             }
         ),
         "supports_zeroconf": True,
@@ -45,10 +50,56 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
         "platforms": frozenset(
             {
                 Platform.BINARY_SENSOR,
+                Platform.BUTTON,
                 Platform.SENSOR,
+                Platform.SWITCH,
             }
         ),
         "supports_zeroconf": False,
+        "allowed_child_models": frozenset(),
+        "max_children": 0,
+    },
+    "ZTTWZ": {
+        "model": DeviceModel.ZTTWZ,
+        "platforms": frozenset(
+            {
+                Platform.BINARY_SENSOR,
+                Platform.BUTTON,
+                Platform.CLIMATE,
+                Platform.SENSOR,
+                Platform.SWITCH,
+            }
+        ),
+        "supports_zeroconf": True,
+        "allowed_child_models": frozenset(),
+        "max_children": 0,
+    },
+    "ZTREA": {
+        "model": DeviceModel.ZTREA,
+        "platforms": frozenset(
+            {
+                Platform.BUTTON,
+                Platform.CLIMATE,
+                Platform.SENSOR,
+                Platform.SWITCH,
+            }
+        ),
+        "supports_zeroconf": True,
+        "allowed_child_models": frozenset(),
+        "max_children": 0,
+    },
+    "ZTEIM": {
+        "model": DeviceModel.ZTEIM,
+        "platforms": frozenset(
+            {
+                Platform.BUTTON,
+                Platform.NUMBER,
+                Platform.SELECT,
+                Platform.SENSOR,
+                Platform.SWITCH,
+            }
+        ),
+        "supports_zeroconf": True,
         "allowed_child_models": frozenset(),
         "max_children": 0,
     },

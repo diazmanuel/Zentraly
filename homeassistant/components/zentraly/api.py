@@ -310,9 +310,31 @@ class ZentralyApi:
         if not self._connected:
             return None
 
-        rid, response = await self._connection.async_send_command(command_builder)
+        command: dict[str, Any] | None = None
+
+        def build_command(
+            rid: int,
+        ) -> dict[str, Any]:
+            """Build and retain the command for diagnostics."""
+
+            nonlocal command
+
+            command = command_builder(rid)
+
+            return command
+
+        rid, response = await self._connection.async_send_command(build_command)
 
         if response is None:
+            _LOGGER.error(
+                "No response received from Zentraly device command: "
+                "device_id=%s mac=%s ip=%s rid=%s command=%s",
+                self._device_id,
+                self._mac,
+                self._host,
+                rid,
+                command,
+            )
             return None
 
         return rid, response

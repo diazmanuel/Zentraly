@@ -137,6 +137,41 @@ class ZentralyCommonCommands:
             raise ValueError("writeAttr request failed")
 
     @staticmethod
+    def build_zcl_command(
+        rid: int,
+        mac: str,
+        cluster: int,
+        ep: int,
+        cmd_id: int,
+    ) -> dict[str, Any]:
+        """Build a zclCmd command."""
+
+        return {
+            "cmd": "zclCmd",
+            "rid": rid,
+            "mac": mac,
+            "cluster": cluster,
+            "ep": ep,
+            "cmdId": cmd_id,
+        }
+
+    @staticmethod
+    def parse_zcl_command_response(
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> None:
+        """Validate a zclCmd response."""
+
+        if response.get("cmd") != "zclCmd":
+            raise ValueError("Unexpected command in zclCmd response")
+
+        if response.get("rid") != expected_rid:
+            raise ValueError("Unexpected RID in zclCmd response")
+
+        if response.get("status") != ResponseStatus.SUCCESS:
+            raise ValueError("zclCmd request failed")
+
+    @staticmethod
     def parse_report(
         report: dict[str, Any],
     ) -> list[dict[str, Any]]:

@@ -4,7 +4,17 @@ from datetime import datetime
 from typing import Any, override
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+from homeassistant.const import (
+    PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
+    UnitOfElectricCurrent,
+    UnitOfElectricPotential,
+    UnitOfEnergy,
+    UnitOfPower,
+    UnitOfPressure,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -13,8 +23,43 @@ from homeassistant.helpers.event import async_track_time_interval
 from .api import SCAN_INTERVAL
 from .device_classes.sensor.api import ZentralySensorApi
 from .device_classes.sensor.capabilities import SensorCapability
-from .device_classes.sensor.types import SensorOutputType
+from .device_classes.types import ZentralyOutputType
 from .models import ZentralyConfigEntry, ZentralyDevice
+
+_OPENTHERM_CAPABILITIES = frozenset(
+    {
+        SensorCapability.ERROR_ID,
+        SensorCapability.CH_SETPOINT,
+        SensorCapability.MODULATION_LEVEL,
+        SensorCapability.CH_WATER_PRESSURE,
+        SensorCapability.DHW_FLOW_RATE,
+        SensorCapability.FEED_TEMPERATURE,
+        SensorCapability.DHW_TEMPERATURE,
+        SensorCapability.DHW_SETPOINT,
+    }
+)
+
+_DIAGNOSTIC_CAPABILITIES = frozenset(
+    {
+        SensorCapability.ERROR_ID,
+        SensorCapability.OUTPUT_TYPE,
+        SensorCapability.RSSI,
+        SensorCapability.WIFI_SIGNAL_POWER,
+        SensorCapability.CH_SETPOINT,
+        SensorCapability.MODULATION_LEVEL,
+        SensorCapability.CH_WATER_PRESSURE,
+        SensorCapability.DHW_FLOW_RATE,
+        SensorCapability.FEED_TEMPERATURE,
+        SensorCapability.DHW_TEMPERATURE,
+        SensorCapability.DHW_SETPOINT,
+    }
+)
+
+_REPORT_ONLY_CAPABILITIES = frozenset(
+    {
+        SensorCapability.RSSI,
+    }
+)
 
 
 def _create_sensor_entities(
@@ -23,36 +68,16 @@ def _create_sensor_entities(
     """Create sensor entities supported by a Zentraly device."""
 
     sensor_api = ZentralySensorApi(device)
-    entities: list[ZentralySensor] = []
 
-    if sensor_api.supports(SensorCapability.ERRORS):
-        entities.append(
-            ZentralySensor(
-                device=device,
-                sensor_api=sensor_api,
-                capability=SensorCapability.ERRORS,
-            )
+    return [
+        ZentralySensor(
+            device=device,
+            sensor_api=sensor_api,
+            capability=capability,
         )
-
-    if sensor_api.supports(SensorCapability.OUTPUT_TYPE):
-        entities.append(
-            ZentralySensor(
-                device=device,
-                sensor_api=sensor_api,
-                capability=SensorCapability.OUTPUT_TYPE,
-            )
-        )
-
-    if sensor_api.supports(SensorCapability.RSSI):
-        entities.append(
-            ZentralySensor(
-                device=device,
-                sensor_api=sensor_api,
-                capability=SensorCapability.RSSI,
-            )
-        )
-
-    return entities
+        for capability in SensorCapability
+        if sensor_api.supports(capability)
+    ]
 
 
 async def async_setup_entry(
@@ -109,13 +134,56 @@ class ZentralySensor(SensorEntity):
         self._attr_unique_id = f"{device.device_id}_{capability.value}"
         self._attr_translation_key = capability.value
 
-        if capability is SensorCapability.RSSI:
+        if capability in _DIAGNOSTIC_CAPABILITIES:
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+        if capability in (
+            SensorCapability.RSSI,
+            SensorCapability.WIFI_SIGNAL_POWER,
+        ):
             self._attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
             self._attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 
         elif capability is SensorCapability.OUTPUT_TYPE:
             self._attr_device_class = SensorDeviceClass.ENUM
-            self._attr_options = [output_type.value for output_type in SensorOutputType]
+            self._attr_options = [
+                output_type.value for output_type in ZentralyOutputType
+            ]
+
+        elif capability is SensorCapability.VOLTAGE:
+            self._attr_device_class = SensorDeviceClass.VOLTAGE
+            self._attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
+
+        elif capability is SensorCapability.CURRENT:
+            self._attr_device_class = SensorDeviceClass.CURRENT
+            self._attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
+
+        elif capability is SensorCapability.POWER:
+            self._attr_device_class = SensorDeviceClass.POWER
+            self._attr_native_unit_of_measurement = UnitOfPower.WATT
+
+        elif capability is SensorCapability.DAILY_ENERGY:
+            self._attr_device_class = SensorDeviceClass.ENERGY
+            self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+        elif capability in (
+            SensorCapability.CH_SETPOINT,
+            SensorCapability.FEED_TEMPERATURE,
+            SensorCapability.DHW_TEMPERATURE,
+            SensorCapability.DHW_SETPOINT,
+        ):
+            self._attr_device_class = SensorDeviceClass.TEMPERATURE
+            self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+
+        elif capability is SensorCapability.MODULATION_LEVEL:
+            self._attr_native_unit_of_measurement = PERCENTAGE
+
+        elif capability is SensorCapability.CH_WATER_PRESSURE:
+            self._attr_device_class = SensorDeviceClass.PRESSURE
+            self._attr_native_unit_of_measurement = UnitOfPressure.BAR
+
+        elif capability is SensorCapability.DHW_FLOW_RATE:
+            self._attr_native_unit_of_measurement = "L/min"
 
     @override
     async def async_added_to_hass(self) -> None:
@@ -131,7 +199,7 @@ class ZentralySensor(SensorEntity):
             self._sensor_api.add_state_listener(self._handle_state_update)
         )
 
-        if self._capability is not SensorCapability.RSSI:
+        if self._capability not in _REPORT_ONLY_CAPABILITIES:
             self.async_on_remove(
                 async_track_time_interval(
                     self.hass,
@@ -161,7 +229,7 @@ class ZentralySensor(SensorEntity):
             self.async_write_ha_state()
             return
 
-        if self._capability is SensorCapability.RSSI:
+        if self._capability in _REPORT_ONLY_CAPABILITIES:
             self.async_write_ha_state()
             return
 
@@ -179,23 +247,23 @@ class ZentralySensor(SensorEntity):
         value = updates[self._capability]
 
         if self._capability is SensorCapability.OUTPUT_TYPE:
-            if not isinstance(value, SensorOutputType):
+            if not isinstance(value, ZentralyOutputType):
                 return
 
             self._attr_native_value = value.value
-
-        elif self._capability in (
-            SensorCapability.ERRORS,
-            SensorCapability.RSSI,
-        ):
-            if not isinstance(value, int):
-                return
-
-            self._attr_native_value = value
-
-        else:
+            self.async_write_ha_state()
             return
 
+        if self._capability in _OPENTHERM_CAPABILITIES:
+            if not self._device.opentherm_connected:
+                self._attr_native_value = None
+                self.async_write_ha_state()
+                return
+
+        if not isinstance(value, int | float):
+            return
+
+        self._attr_native_value = value
         self.async_write_ha_state()
 
     async def async_update(self) -> None:
@@ -206,19 +274,70 @@ class ZentralySensor(SensorEntity):
         if not self._device.connected:
             return
 
-        if self._capability is SensorCapability.ERRORS:
-            errors = await self._sensor_api.async_get_errors()
-
-            if errors is not None:
-                self._attr_native_value = errors
-
+        if self._capability in _REPORT_ONLY_CAPABILITIES:
             return
 
         if self._capability is SensorCapability.OUTPUT_TYPE:
             output_type = await self._sensor_api.async_get_output_type()
 
-            if output_type is not None:
-                self._attr_native_value = output_type.value
+            if output_type is None:
+                return
+
+            self._attr_native_value = output_type.value
+            return
+
+        if (
+            self._capability in _OPENTHERM_CAPABILITIES
+            and not self._device.opentherm_connected
+        ):
+            self._attr_native_value = None
+            return
+
+        value: int | float | None
+
+        if self._capability is SensorCapability.ERROR_ID:
+            value = await self._sensor_api.async_get_error_id()
+
+        elif self._capability is SensorCapability.WIFI_SIGNAL_POWER:
+            value = await self._sensor_api.async_get_wifi_signal_power()
+
+        elif self._capability is SensorCapability.VOLTAGE:
+            value = await self._sensor_api.async_get_voltage()
+
+        elif self._capability is SensorCapability.CURRENT:
+            value = await self._sensor_api.async_get_current()
+
+        elif self._capability is SensorCapability.POWER:
+            value = await self._sensor_api.async_get_power()
+
+        elif self._capability is SensorCapability.DAILY_ENERGY:
+            value = await self._sensor_api.async_get_daily_energy()
+
+        elif self._capability is SensorCapability.CH_SETPOINT:
+            value = await self._sensor_api.async_get_ch_setpoint()
+
+        elif self._capability is SensorCapability.MODULATION_LEVEL:
+            value = await self._sensor_api.async_get_modulation_level()
+
+        elif self._capability is SensorCapability.CH_WATER_PRESSURE:
+            value = await self._sensor_api.async_get_ch_water_pressure()
+
+        elif self._capability is SensorCapability.DHW_FLOW_RATE:
+            value = await self._sensor_api.async_get_dhw_flow_rate()
+
+        elif self._capability is SensorCapability.FEED_TEMPERATURE:
+            value = await self._sensor_api.async_get_feed_temperature()
+
+        elif self._capability is SensorCapability.DHW_TEMPERATURE:
+            value = await self._sensor_api.async_get_dhw_temperature()
+
+        elif self._capability is SensorCapability.DHW_SETPOINT:
+            value = await self._sensor_api.async_get_dhw_setpoint()
+
+        else:
+            return
+
+        self._attr_native_value = value
 
     @property
     @override
