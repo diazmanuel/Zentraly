@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from ..exceptions import ZentralyAuthenticationError, ZentralyConnectionError
 from .protocol import ResponseStatus
 
 
@@ -26,13 +27,16 @@ class ZentralyCommonCommands:
         """Validate a login response."""
 
         if response.get("cmd") != "login":
-            raise ValueError("Unexpected command in login response")
+            raise ZentralyConnectionError("Unexpected command in login response")
 
         if response.get("rid") != expected_rid:
-            raise ValueError("Unexpected RID in login response")
+            raise ZentralyConnectionError("Unexpected RID in login response")
+
+        if type(response.get("status")) is not int:
+            raise ZentralyConnectionError("Invalid status in login response")
 
         if response.get("status") != ResponseStatus.SUCCESS:
-            raise ValueError("Login failed")
+            raise ZentralyAuthenticationError("Login rejected by device")
 
     @staticmethod
     def build_keepalive(rid: int) -> dict[str, Any]:

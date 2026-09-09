@@ -1,11 +1,13 @@
 """Config flow for the Zentraly integration."""
 
+from collections.abc import Mapping
 import logging
 from typing import Any, override
 
 import voluptuous as vol
 
 from homeassistant.config_entries import (
+    SOURCE_REAUTH,
     ConfigEntry,
     ConfigEntryState,
     ConfigFlow as HAConfigFlow,
@@ -193,6 +195,15 @@ class ZentralyConfigFlow(HAConfigFlow, domain=DOMAIN):
 
         return await self.async_step_auth()
 
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Request a replacement password for the existing device."""
+        entry = self._get_reauth_entry()
+        self.data = dict(entry.data)
+        self.context["title_placeholders"] = {"name": entry.data[CONF_DEVICE_ID]}
+        return await self.async_step_auth()
+
     async def async_step_auth(
         self,
         user_input: dict[str, Any] | None = None,
@@ -221,6 +232,22 @@ class ZentralyConfigFlow(HAConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
 
             else:
+                if self.source == SOURCE_REAUTH:
+                    entry = self._get_reauth_entry()
+                    if mac.lower() != entry.data[CONF_MAC].lower():
+                        return self.async_abort(reason="wrong_device")
+
+                    reload_by_listener = (
+                        bool(entry.update_listeners)
+                        and password != entry.data[CONF_PASSWORD]
+                    )
+                    result = self.async_update_and_abort(
+                        entry, data_updates={CONF_PASSWORD: password}
+                    )
+                    if not reload_by_listener:
+                        self.hass.config_entries.async_schedule_reload(entry.entry_id)
+                    return result
+
                 self.data[CONF_PASSWORD] = password
                 self.data[CONF_MAC] = mac
 

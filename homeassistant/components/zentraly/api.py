@@ -72,6 +72,7 @@ class ZentralyApi:
 
         self._connected = False
         self._connection_state_listeners: set[ConnectionStateListener] = set()
+        self._authentication_error_listeners: set[Callable[[], None]] = set()
         self._report_listeners: dict[str, set[ReportListener]] = {}
 
         self._connection_task: asyncio.Task[None] | None = None
@@ -80,6 +81,17 @@ class ZentralyApi:
         self._stop_requested = False
 
         self._keepalive_failures = 0
+
+    def add_authentication_error_listener(
+        self, listener: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register a listener for credentials rejected during reconnect."""
+        self._authentication_error_listeners.add(listener)
+
+        def remove_listener() -> None:
+            self._authentication_error_listeners.discard(listener)
+
+        return remove_listener
 
     @property
     def host(self) -> str:
@@ -417,16 +429,9 @@ class ZentralyApi:
         )
 
         if response is None:
-            raise ZentralyAuthenticationError("No response received to Zentraly login")
+            raise ZentralyConnectionError("No response received to Zentraly login")
 
-        try:
-            ZentralyCommonCommands.parse_login_response(
-                response,
-                rid,
-            )
-
-        except (TypeError, ValueError) as err:
-            raise ZentralyAuthenticationError("Invalid login response") from err
+        ZentralyCommonCommands.parse_login_response(response, rid)
 
     async def _async_get_mac(
         self,
@@ -548,7 +553,7 @@ class ZentralyApi:
             await self._connection.async_connect()
             await self._async_login(self._connection)
 
-        except ZentralyAuthenticationError:
+        except ZentralyAuthenticationError, ZentralyConnectionError:
             await self._connection.async_disconnect()
             raise
 
@@ -587,10 +592,12 @@ class ZentralyApi:
                     try:
                         await self._async_connect_once()
 
-                    except (
-                        ZentralyAuthenticationError,
-                        ZentralyConnectionError,
-                    ):
+                    except ZentralyAuthenticationError:
+                        for listener in tuple(self._authentication_error_listeners):
+                            listener()
+                        return
+
+                    except ZentralyConnectionError:
                         if attempt < CONNECTION_ATTEMPTS - 1:
                             await asyncio.sleep(CONNECTION_ATTEMPT_DELAY)
 
