@@ -14,6 +14,7 @@ from .commands.common import ZentralyCommonCommands
 from .connection import TO_REDACT, ZentralyConnection, ZentralyTransportError
 from .devices import get_device_commands
 from .devices.device import DeviceModel, get_device_model
+from .exceptions import ZentralyAuthenticationError, ZentralyConnectionError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,18 +29,6 @@ type CommandResult = tuple[int, dict[str, Any]]
 type ConnectionStateListener = Callable[[bool], None]
 type ReportData = list[dict[str, Any]]
 type ReportListener = Callable[[ReportData], None]
-
-
-class ZentralyApiError(Exception):
-    """Base exception for Zentraly API."""
-
-
-class ZentralyAuthenticationError(ZentralyApiError):
-    """Error raised when authentication fails."""
-
-
-class ZentralyConnectionError(ZentralyApiError):
-    """Error raised when the WebSocket connection fails."""
 
 
 class ZentralyApi:

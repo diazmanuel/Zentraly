@@ -10,9 +10,16 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from .api import CommandResult, ConnectionStateListener, ReportListener, ZentralyApi
 from .commands.base import ZentralyDeviceCommands
+from .commands.protocol import ResponseStatus
 from .const import DOMAIN
 from .device_classes.types import ZentralyOutputType
 from .devices.device import DeviceModel
+from .exceptions import (
+    ZentralyCommandRejectedError,
+    ZentralyConnectionError,
+    ZentralyInvalidResponseError,
+    ZentralyValidationError,
+)
 
 
 @dataclass(slots=True)
@@ -131,6 +138,30 @@ class ZentralyDevice:
         return await self.api.async_execute_command(
             command_builder,
         )
+
+    async def async_execute_action_command(
+        self,
+        command_builder: Callable[[int], dict[str, Any]],
+    ) -> CommandResult:
+        """Execute an action command, preserving its failure category."""
+
+        def build(rid: int) -> dict[str, Any]:
+            try:
+                return command_builder(rid)
+            except (TypeError, ValueError) as err:
+                raise ZentralyValidationError("Invalid command parameters") from err
+
+        result = await self.async_execute_command(build)
+        if result is None:
+            raise ZentralyConnectionError("No response to action command")
+
+        _, response = result
+        status = response.get("status")
+        if type(status) is not int:
+            raise ZentralyInvalidResponseError("Missing or invalid response status")
+        if status != ResponseStatus.SUCCESS:
+            raise ZentralyCommandRejectedError(f"Command rejected with status {status}")
+        return result
 
 
 @dataclass(slots=True)

@@ -1,6 +1,7 @@
 """Number platform for Zentraly."""
 
 from datetime import datetime
+import logging
 from typing import Any, override
 
 from homeassistant.components.number import NumberEntity
@@ -15,14 +16,21 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 
+from .actions import translate_action_errors
 from .api import SCAN_INTERVAL
 from .device_classes.number.api import ZentralyNumberApi
 from .device_classes.number.capabilities import NumberCapability
+from .exceptions import (
+    ZentralyApiError,
+    ZentralyConnectionError,
+    ZentralyValidationError,
+)
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0
 
 _TIMER_DEBOUNCE_SECONDS = 3.0
+_LOGGER = logging.getLogger(__name__)
 
 _CONFIG_CAPABILITIES = frozenset(
     {
@@ -187,7 +195,14 @@ class ZentralyNumber(NumberEntity):
             return
 
         generation = self._timer_generation
-        success = await self._number_api.async_set_timer(value)
+        try:
+            success = await self._number_api.async_set_timer(value)
+        except ZentralyApiError as err:
+            _LOGGER.error("Timer write failed for %s: %s", self.unique_id, err)
+            success = False
+        else:
+            if not success:
+                _LOGGER.error("Timer write failed for %s", self.unique_id)
 
         if generation != self._timer_generation:
             return
@@ -294,6 +309,7 @@ class ZentralyNumber(NumberEntity):
             self._attr_native_value = value
 
     @override
+    @translate_action_errors
     async def async_set_native_value(
         self,
         value: float,
@@ -301,7 +317,7 @@ class ZentralyNumber(NumberEntity):
         """Set the Zentraly number value."""
 
         if not self._device.connected:
-            return
+            raise ZentralyConnectionError("Device disconnected")
 
         if self._capability is NumberCapability.TIMER:
             self._cancel_pending_timer_write()
@@ -330,10 +346,10 @@ class ZentralyNumber(NumberEntity):
             success = await self._number_api.async_set_high_power_limit(value)
 
         else:
-            return
+            raise ZentralyValidationError("Unsupported action")
 
         if not success:
-            return
+            raise ZentralyApiError("Action failed")
 
         self._attr_native_value = value
         self.async_write_ha_state()

@@ -7,15 +7,15 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from homeassistant import config_entries
-from homeassistant.components.zentraly.api import (
-    ZentralyAuthenticationError,
-    ZentralyConnectionError,
-)
 from homeassistant.components.zentraly.config_flow import (
     SUBENTRY_TYPE_DEVICE,
     ZentralyConfigFlow,
 )
 from homeassistant.components.zentraly.const import DOMAIN
+from homeassistant.components.zentraly.exceptions import (
+    ZentralyAuthenticationError,
+    ZentralyConnectionError,
+)
 from homeassistant.const import (
     CONF_DEVICE_ID,
     CONF_HOST,

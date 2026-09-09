@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
 from ..types import SelectOperationMode
 from .capabilities import SelectCapability
 from .command_protocols import OperationModeCommands
@@ -223,29 +224,26 @@ class ZentralySelectApi:
         """Set a manually selectable operation mode."""
 
         if not self.supports(SelectCapability.OPERATION_MODE):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         if not self.is_option_writable(
             SelectCapability.OPERATION_MODE,
             mode,
         ):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         commands = cast(
             OperationModeCommands,
             self._device.commands,
         )
 
-        result = await self._device.async_execute_command(
+        result = await self._device.async_execute_action_command(
             lambda rid: commands.build_write_operation_mode(
                 rid,
                 self._device.mac,
                 mode,
             )
         )
-
-        if result is None:
-            return False
 
         rid, response = result
 
@@ -255,7 +253,7 @@ class ZentralySelectApi:
                 rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         return True

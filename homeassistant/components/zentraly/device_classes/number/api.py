@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
 from ..select.capabilities import SelectCapability
 from ..select.command_protocols import OperationModeCommands
 from ..switch.capabilities import SwitchCapability
@@ -210,18 +211,15 @@ class ZentralyNumberApi:
         """Write a number capability to the device."""
 
         if not self.supports(capability):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
-        result = await self._device.async_execute_command(
+        result = await self._device.async_execute_action_command(
             lambda rid: builder(
                 rid,
                 self._device.mac,
                 value,
             )
         )
-
-        if result is None:
-            return False
 
         rid, response = result
 
@@ -231,8 +229,8 @@ class ZentralyNumberApi:
                 rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         return True
 
@@ -259,13 +257,13 @@ class ZentralyNumberApi:
         """Set the timer and automatically enter timer mode."""
 
         if not self.supports(NumberCapability.TIMER):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         if not self._device.supports(SwitchCapability.POWER):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         if not self._device.supports(SelectCapability.OPERATION_MODE):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         power_commands = cast(
             PowerCommands,
@@ -282,15 +280,12 @@ class ZentralyNumberApi:
             self._device.commands,
         )
 
-        power_result = await self._device.async_execute_command(
+        power_result = await self._device.async_execute_action_command(
             lambda rid: power_commands.build_read_power_state(
                 rid,
                 self._device.mac,
             )
         )
-
-        if power_result is None:
-            return False
 
         power_rid, power_response = power_result
 
@@ -300,13 +295,13 @@ class ZentralyNumberApi:
                 power_rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         if not isinstance(power_on, bool):
-            return False
+            raise ZentralyInvalidResponseError("Invalid power state")
 
-        timer_result = await self._device.async_execute_command(
+        timer_result = await self._device.async_execute_action_command(
             lambda rid: timer_commands.build_write_timer(
                 rid,
                 self._device.mac,
@@ -314,9 +309,6 @@ class ZentralyNumberApi:
                 power_on,
             )
         )
-
-        if timer_result is None:
-            return False
 
         timer_rid, timer_response = timer_result
 
@@ -326,19 +318,16 @@ class ZentralyNumberApi:
                 timer_rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
-        mode_result = await self._device.async_execute_command(
+        mode_result = await self._device.async_execute_action_command(
             lambda rid: operation_mode_commands.build_write_operation_mode(
                 rid,
                 self._device.mac,
                 SelectOperationMode.TIMER,
             )
         )
-
-        if mode_result is None:
-            return False
 
         mode_rid, mode_response = mode_result
 
@@ -348,8 +337,8 @@ class ZentralyNumberApi:
                 mode_rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         return True
 

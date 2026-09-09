@@ -9,10 +9,16 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
+from .actions import translate_action_errors
 from .api import SCAN_INTERVAL
 from .device_classes.select.api import ZentralySelectApi
 from .device_classes.select.capabilities import SelectCapability
 from .device_classes.types import SelectOperationMode
+from .exceptions import (
+    ZentralyApiError,
+    ZentralyConnectionError,
+    ZentralyValidationError,
+)
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0
@@ -188,6 +194,7 @@ class ZentralySelect(SelectEntity):
         self._attr_current_option = option
 
     @override
+    @translate_action_errors
     async def async_select_option(
         self,
         option: str,
@@ -195,13 +202,13 @@ class ZentralySelect(SelectEntity):
         """Select a Zentraly option."""
 
         if not self._device.connected:
-            return
+            raise ZentralyConnectionError("Device disconnected")
 
         try:
             mode = SelectOperationMode(option)
 
-        except ValueError:
-            return
+        except ValueError as err:
+            raise ZentralyValidationError("Invalid option") from err
 
         if self._capability is not SelectCapability.OPERATION_MODE:
             return
@@ -209,7 +216,7 @@ class ZentralySelect(SelectEntity):
         success = await self._select_api.async_set_operation_mode(mode)
 
         if not success:
-            return
+            raise ZentralyApiError("Action failed")
 
         self._attr_current_option = mode.value
         self.async_write_ha_state()

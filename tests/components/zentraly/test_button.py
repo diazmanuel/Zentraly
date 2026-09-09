@@ -11,6 +11,7 @@ from homeassistant.components.zentraly.device_classes.button.api import (
 from homeassistant.components.zentraly.device_classes.button.capabilities import (
     ButtonCapability,
 )
+from homeassistant.exceptions import HomeAssistantError
 
 
 @pytest.mark.parametrize(
@@ -50,6 +51,7 @@ async def test_unavailable_boiler(
     entity = ZentralyButton(
         device=platform_device, button_api=api, capability=ButtonCapability.RESET_BOILER
     )
-    await entity.async_press()
+    with pytest.raises(HomeAssistantError):
+        await entity.async_press()
     assert not entity.available
     api.async_reset_boiler.assert_not_awaited()

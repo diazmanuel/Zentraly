@@ -1,5 +1,6 @@
 """Tests for Zentraly operating mode selection."""
 
+from contextlib import AbstractContextManager, nullcontext
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,17 +13,21 @@ from homeassistant.components.zentraly.device_classes.select.capabilities import
 )
 from homeassistant.components.zentraly.device_classes.types import SelectOperationMode
 from homeassistant.components.zentraly.select import ZentralySelect
+from homeassistant.exceptions import HomeAssistantError
 
 
 @pytest.mark.parametrize(
-    ("success", "expected"),
+    ("success", "expected", "expectation"),
     [
-        pytest.param(True, "auto", id="success"),
-        pytest.param(False, "manual", id="failure"),
+        pytest.param(True, "auto", nullcontext(), id="success"),
+        pytest.param(False, "manual", pytest.raises(HomeAssistantError), id="failure"),
     ],
 )
 async def test_select_mode(
-    platform_device: MagicMock, success: bool, expected: str
+    platform_device: MagicMock,
+    success: bool,
+    expected: str,
+    expectation: AbstractContextManager,
 ) -> None:
     """Only a successful command changes the displayed option."""
     api = MagicMock(spec=ZentralySelectApi)
@@ -38,7 +43,7 @@ async def test_select_mode(
         capability=SelectCapability.OPERATION_MODE,
     )
     await entity.async_update()
-    with patch.object(entity, "async_write_ha_state"):
+    with patch.object(entity, "async_write_ha_state"), expectation:
         await entity.async_select_option("auto")
     assert entity.current_option == expected
     assert entity.options == ["manual", "auto"]
@@ -55,5 +60,6 @@ async def test_disconnected_select(platform_device: MagicMock) -> None:
         select_api=api,
         capability=SelectCapability.OPERATION_MODE,
     )
-    await entity.async_select_option("auto")
+    with pytest.raises(HomeAssistantError):
+        await entity.async_select_option("auto")
     api.async_set_operation_mode.assert_not_awaited()

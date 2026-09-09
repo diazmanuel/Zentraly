@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
 from ..types import ClimateOperationMode
 from .capabilities import ClimateCapability
 from .command_protocols import (
@@ -190,23 +191,20 @@ class ZentralyClimateApi:
         """Set the target temperature."""
 
         if not self.supports(ClimateCapability.TARGET_TEMPERATURE):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         commands = cast(
             TargetTemperatureCommands,
             self._device.commands,
         )
 
-        result = await self._device.async_execute_command(
+        result = await self._device.async_execute_action_command(
             lambda rid: commands.build_write_target_temperature(
                 rid=rid,
                 mac=self._device.mac,
                 temperature=temperature,
             )
         )
-
-        if result is None:
-            return False
 
         rid, response = result
 
@@ -216,8 +214,8 @@ class ZentralyClimateApi:
                 rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         return True
 
@@ -262,23 +260,20 @@ class ZentralyClimateApi:
         """Set the operation mode."""
 
         if not self.supports(ClimateCapability.OPERATION_MODE):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         commands = cast(
             OperationModeCommands,
             self._device.commands,
         )
 
-        result = await self._device.async_execute_command(
+        result = await self._device.async_execute_action_command(
             lambda rid: commands.build_write_operation_mode(
                 rid=rid,
                 mac=self._device.mac,
                 mode=mode,
             )
         )
-
-        if result is None:
-            return False
 
         rid, response = result
 
@@ -288,8 +283,8 @@ class ZentralyClimateApi:
                 rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         return True
 
@@ -332,23 +327,20 @@ class ZentralyClimateApi:
         """Set the local temperature offset."""
 
         if not self.supports(ClimateCapability.TEMPERATURE_OFFSET):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         commands = cast(
             TemperatureOffsetCommands,
             self._device.commands,
         )
 
-        result = await self._device.async_execute_command(
+        result = await self._device.async_execute_action_command(
             lambda rid: commands.build_write_local_temperature_offset(
                 rid=rid,
                 mac=self._device.mac,
                 offset=offset,
             )
         )
-
-        if result is None:
-            return False
 
         rid, response = result
 
@@ -358,8 +350,8 @@ class ZentralyClimateApi:
                 rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         return True
 
