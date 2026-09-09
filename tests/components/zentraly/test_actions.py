@@ -28,6 +28,7 @@ from homeassistant.components.zentraly.device_classes.types import SelectOperati
 from homeassistant.components.zentraly.exceptions import (
     ZentralyApiError,
     ZentralyCommandRejectedError,
+    ZentralyConnectionBusyError,
     ZentralyConnectionError,
     ZentralyInvalidResponseError,
     ZentralyValidationError,
@@ -105,6 +106,12 @@ async def test_capability_action_errors(
 @pytest.mark.parametrize(
     ("error", "ha_error", "key"),
     [
+        pytest.param(
+            ZentralyConnectionBusyError,
+            HomeAssistantError,
+            "connection_busy",
+            id="saturation",
+        ),
         pytest.param(
             ZentralyConnectionError,
             HomeAssistantError,

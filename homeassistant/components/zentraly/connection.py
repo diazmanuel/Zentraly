@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import Callable
 from contextlib import suppress
+from dataclasses import dataclass
 import json
 import logging
 from typing import Any
@@ -11,9 +12,14 @@ import aiohttp
 
 from homeassistant.helpers.redact import async_redact_data
 
+from .exceptions import ZentralyConnectionBusyError
+
 _LOGGER = logging.getLogger(__name__)
 
 COMMAND_TIMEOUT = 30
+QUEUE_TIMEOUT = 60
+MAX_IN_FLIGHT = 20
+QUEUE_WARNING_LIMIT = 10
 MAX_RID = 0xFFFF
 TO_REDACT = {"key", "password"}
 
@@ -34,6 +40,17 @@ class ZentralyTransportError(Exception):
     """Error raised when the Zentraly WebSocket transport fails."""
 
 
+@dataclass(slots=True)
+class QueuedRequest:
+    """A request belonging exclusively to the current connection."""
+
+    command: ZentralyMessage
+    response: asyncio.Future[ZentralyMessage | None]
+    sent: asyncio.Future[bool]
+    deadline: float
+    sent_at: float | None = None
+
+
 class ZentralyConnection:
     """Manage a Zentraly WebSocket connection."""
 
@@ -50,7 +67,11 @@ class ZentralyConnection:
         self._session: aiohttp.ClientSession | None = None
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
 
-        self._send_queue: asyncio.Queue[ZentralyMessage] = asyncio.Queue()
+        self._send_queue: asyncio.Queue[QueuedRequest] = asyncio.Queue()
+        self._requests: dict[int, QueuedRequest] = {}
+        self._waiting = 0
+        self._capacity_available = asyncio.Event()
+        self._capacity_available.set()
 
         self._pending_requests: dict[int, PendingRequest] = {}
 
@@ -124,7 +145,7 @@ class ZentralyConnection:
             if self._rid > MAX_RID:
                 self._rid = 1
 
-            if self._rid not in self._pending_requests:
+            if self._rid not in self._requests:
                 return self._rid
 
         raise ZentralyTransportError("No Zentraly request IDs available")
@@ -240,23 +261,47 @@ class ZentralyConnection:
         if not isinstance(command_name, str) or not command_name:
             raise TypeError("Zentraly command must contain a command name")
 
-        expected_mac = self._get_expected_mac(command)
-
-        future: asyncio.Future[ZentralyMessage | None] = (
-            asyncio.get_running_loop().create_future()
+        loop = asyncio.get_running_loop()
+        request = QueuedRequest(
+            command,
+            loop.create_future(),
+            loop.create_future(),
+            loop.time() + QUEUE_TIMEOUT,
         )
-
-        self._pending_requests[rid] = (
-            command_name,
-            expected_mac,
-            future,
-        )
-
-        await self._send_queue.put(command)
+        self._requests[rid] = request
+        self._waiting += 1
+        if self._waiting == QUEUE_WARNING_LIMIT:
+            _LOGGER.error(
+                "Zentraly connection queue has reached %s waiting requests: host=%s port=%s",
+                QUEUE_WARNING_LIMIT,
+                self._host,
+                self._port,
+            )
+        self._send_queue.put_nowait(request)
 
         try:
-            async with asyncio.timeout(COMMAND_TIMEOUT):
-                response = await future
+            try:
+                async with asyncio.timeout_at(request.deadline):
+                    sent = await asyncio.shield(request.sent)
+            except TimeoutError as err:
+                if request.sent.done():
+                    sent = request.sent.result()
+                else:
+                    _LOGGER.error(
+                        "Zentraly connection saturated: request waited %s seconds: host=%s port=%s rid=%s",
+                        QUEUE_TIMEOUT,
+                        self._host,
+                        self._port,
+                        rid,
+                    )
+                    raise ZentralyConnectionBusyError(
+                        "Timed out waiting to send command"
+                    ) from err
+            if not sent:
+                return rid, None
+            assert request.sent_at is not None
+            async with asyncio.timeout_at(request.sent_at + COMMAND_TIMEOUT):
+                response = await request.response
 
         except TimeoutError:
             return rid, None
@@ -265,15 +310,32 @@ class ZentralyConnection:
             return rid, response
 
         finally:
-            self._pending_requests.pop(rid, None)
+            if self._requests.get(rid) is request:
+                self._requests.pop(rid)
+                if not request.sent.done():
+                    self._waiting -= 1
+                self._pending_requests.pop(rid, None)
+                self._capacity_available.set()
+            request.sent.cancel()
+            request.response.cancel()
 
     async def _async_sender_loop(self) -> None:
         """Send queued commands over the WebSocket."""
 
         while self._connected:
-            command = await self._send_queue.get()
+            request = await self._send_queue.get()
+            command = request.command
+            rid = command["rid"]
 
             try:
+                while len(self._pending_requests) >= MAX_IN_FLIGHT:
+                    self._capacity_available.clear()
+                    await self._capacity_available.wait()
+
+                if self._requests.get(rid) is not request:
+                    continue
+                if asyncio.get_running_loop().time() >= request.deadline:
+                    continue
                 websocket = self._websocket
 
                 if websocket is None or websocket.closed:
@@ -282,14 +344,31 @@ class ZentralyConnection:
                     )
                     return
 
+                self._waiting -= 1
+                self._pending_requests[rid] = (
+                    command["cmd"],
+                    self._get_expected_mac(command),
+                    request.response,
+                )
+                request.sent_at = asyncio.get_running_loop().time()
+                request.sent.set_result(True)
+                if len(self._pending_requests) == MAX_IN_FLIGHT:
+                    _LOGGER.warning(
+                        "Zentraly connection loaded: %s requests in flight: host=%s port=%s",
+                        MAX_IN_FLIGHT,
+                        self._host,
+                        self._port,
+                    )
+
                 _LOGGER.debug(
                     "Zentraly WebSocket TX: %s",
                     async_redact_data(command, TO_REDACT),
                 )
 
-                await websocket.send_json(command)
+                async with asyncio.timeout(COMMAND_TIMEOUT):
+                    await websocket.send_json(command)
 
-            except (aiohttp.ClientError, OSError) as err:
+            except (TimeoutError, aiohttp.ClientError, OSError) as err:
                 self._handle_connection_lost(f"Error sending WebSocket message: {err}")
                 return
 
@@ -387,6 +466,8 @@ class ZentralyConnection:
 
         if not future.done():
             future.set_result(response)
+        self._pending_requests.pop(rid, None)
+        self._capacity_available.set()
 
     def _dispatch_message(
         self,
@@ -426,11 +507,16 @@ class ZentralyConnection:
     def _resolve_pending_requests(self) -> None:
         """Resolve all pending requests without a response."""
 
-        for _, _, future in self._pending_requests.values():
-            if not future.done():
-                future.set_result(None)
+        for request in self._requests.values():
+            if not request.sent.done():
+                request.sent.set_result(False)
+            if not request.response.done():
+                request.response.set_result(None)
 
+        self._requests.clear()
         self._pending_requests.clear()
+        self._waiting = 0
+        self._capacity_available.set()
 
     def _clear_send_queue(self) -> None:
         """Remove commands waiting to be sent."""

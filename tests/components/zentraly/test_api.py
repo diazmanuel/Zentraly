@@ -15,8 +15,21 @@ from homeassistant.components.zentraly.connection import (
 )
 from homeassistant.components.zentraly.exceptions import (
     ZentralyAuthenticationError,
+    ZentralyConnectionBusyError,
     ZentralyConnectionError,
 )
+
+
+async def test_keepalive_queue_timeout_does_not_count_as_device_failure() -> None:
+    """Local saturation must neither stop keepalive nor trigger reconnection."""
+    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api._set_connected(True)
+    with patch.object(
+        api._connection, "async_send_command", side_effect=ZentralyConnectionBusyError
+    ):
+        await api._async_keepalive()
+    assert api.connected
+    assert api._keepalive_failures == 0
 
 
 def test_gateway_transition_logs(caplog: pytest.LogCaptureFixture) -> None:

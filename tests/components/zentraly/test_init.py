@@ -1,11 +1,13 @@
 """Tests for the Zentraly integration setup."""
 
-from unittest.mock import AsyncMock, patch
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from homeassistant.components.zentraly import create_device
 from homeassistant.components.zentraly.api import ZentralyApi
+from homeassistant.components.zentraly.connection import ZentralyConnection
 from homeassistant.components.zentraly.const import DOMAIN
 from homeassistant.components.zentraly.devices.device import (
     DeviceModel,
@@ -42,6 +44,56 @@ CHILD_MAC = "1020ba12316c"
 ZTEIM_MAC = "aabbccddeeff"
 
 PASSWORD = "test-password"
+
+
+async def test_unload_clears_real_pending_requests(
+    hass: HomeAssistant, transport: tuple[ZentralyConnection, MagicMock]
+) -> None:
+    """Unloading through Home Assistant closes transport and fails queued work."""
+    connection, websocket = transport
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    with (
+        patch(
+            "homeassistant.components.zentraly.ZentralyApi.async_validate_password",
+            return_value=PARENT_MAC,
+        ),
+        patch("homeassistant.components.zentraly.ZentralyApi.async_connect"),
+        patch.object(hass.config_entries, "async_forward_entry_setups"),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    api = entry.runtime_data.api
+    api._connection = connection
+    api._set_connected(True)
+    api._keepalive_task = asyncio.create_task(api._async_keepalive_loop())
+    keepalive = api._keepalive_task
+    tasks = [
+        asyncio.create_task(
+            connection.async_send_command(
+                lambda rid: {"cmd": "readAttr", "rid": rid, "mac": PARENT_MAC}
+            )
+        )
+        for _ in range(25)
+    ]
+    for _ in range(6):
+        await asyncio.sleep(0)
+    assert len(connection._pending_requests) == 20
+    assert connection._waiting == 5
+    with patch.object(hass.config_entries, "async_unload_platforms", return_value=True):
+        assert await hass.config_entries.async_unload(entry.entry_id)
+    assert await asyncio.gather(*tasks) == [(rid, None) for rid in range(1, 26)]
+    assert not connection.connected
+    assert connection._requests == {}
+    assert connection._pending_requests == {}
+    assert connection._waiting == 0
+    assert connection._send_queue.empty()
+    assert connection._sender_task is None
+    assert connection._receiver_task is None
+    assert api._keepalive_task is None
+    assert keepalive.cancelled()
+    assert not api._authentication_error_listeners
+    websocket.close.assert_awaited_once()
+
 
 SUBENTRY_TYPE_DEVICE = "device"
 

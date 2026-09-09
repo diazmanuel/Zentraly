@@ -14,7 +14,11 @@ from .commands.common import ZentralyCommonCommands
 from .connection import TO_REDACT, ZentralyConnection, ZentralyTransportError
 from .devices import get_device_commands
 from .devices.device import DeviceModel, get_device_model
-from .exceptions import ZentralyAuthenticationError, ZentralyConnectionError
+from .exceptions import (
+    ZentralyAuthenticationError,
+    ZentralyConnectionBusyError,
+    ZentralyConnectionError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -522,9 +526,12 @@ class ZentralyApi:
     async def _async_keepalive(self) -> None:
         """Send a keepalive request and process its response."""
 
-        rid, response = await self._connection.async_send_command(
-            ZentralyCommonCommands.build_keepalive
-        )
+        try:
+            rid, response = await self._connection.async_send_command(
+                ZentralyCommonCommands.build_keepalive
+            )
+        except ZentralyConnectionBusyError:
+            return
 
         if response is None:
             self._handle_keepalive_failure()
