@@ -3,6 +3,15 @@
 from typing import Any, Protocol
 
 from ..types import ClimateOperationMode
+from .configuration import ClimateConfiguration
+
+
+class ClimateConfigurationCommands(Protocol):
+    """Model metadata required by a climate platform."""
+
+    @property
+    def climate_configuration(self) -> ClimateConfiguration:
+        """Return the model's climate configuration."""
 
 
 class LocalTemperatureCommands(Protocol):
@@ -23,7 +32,7 @@ class LocalTemperatureCommands(Protocol):
         """Parse the local temperature response."""
 
 
-class TargetTemperatureCommands(Protocol):
+class TargetTemperatureCommands(ClimateConfigurationCommands, Protocol):
     """Commands for devices supporting target temperature."""
 
     def build_read_target_temperature(
@@ -56,7 +65,7 @@ class TargetTemperatureCommands(Protocol):
         """Parse the target temperature write response."""
 
 
-class OperationModeCommands(Protocol):
+class OperationModeCommands(ClimateConfigurationCommands, Protocol):
     """Commands for devices supporting operation mode."""
 
     def build_read_operation_mode(

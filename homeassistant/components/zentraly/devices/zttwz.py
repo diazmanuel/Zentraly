@@ -9,6 +9,7 @@ from ..commands.protocol import DataType
 from ..device_classes.binary_sensor.capabilities import BinarySensorCapability
 from ..device_classes.button.capabilities import ButtonCapability
 from ..device_classes.climate.capabilities import ClimateCapability
+from ..device_classes.climate.configuration import ClimateConfiguration
 from ..device_classes.sensor.capabilities import SensorCapability
 from ..device_classes.switch.capabilities import SwitchCapability
 from ..device_classes.types import ClimateOperationMode, ZentralyOutputType
@@ -38,6 +39,14 @@ CLIMATE_TO_ZTTWZ_OPERATION_MODE = {
 
 class ZttwzCommands(ZentralyDeviceCommands):
     """Commands supported by ZTTWZ devices."""
+
+    climate_configuration = ClimateConfiguration(
+        minimum_temperature=5,
+        maximum_temperature=30,
+        temperature_step=0.5,
+        operation_modes=tuple(CLIMATE_TO_ZTTWZ_OPERATION_MODE),
+        mode_after_setpoint=ClimateOperationMode.MANUAL,
+    )
 
     ENDPOINT = 1
 
@@ -858,11 +867,9 @@ class ZttwzCommands(ZentralyDeviceCommands):
 
         raw_temperature = self._temperature_to_raw(temperature)
 
-        if not 500 <= raw_temperature <= 3000:
-            raise ValueError("Target temperature must be between 5 and 30 °C")
-
-        if raw_temperature % 50 != 0:
-            raise ValueError("Target temperature must use 0.5 °C steps")
+        self.climate_configuration.validate_temperature(
+            self._temperature_from_raw(raw_temperature)
+        )
 
         return self._build_write_attribute(
             rid=rid,
@@ -922,6 +929,8 @@ class ZttwzCommands(ZentralyDeviceCommands):
         mode: ClimateOperationMode,
     ) -> dict[str, Any]:
         """Build the operation-mode write command."""
+
+        self.climate_configuration.validate_operation_mode(mode)
 
         try:
             zttwz_mode = CLIMATE_TO_ZTTWZ_OPERATION_MODE[mode]

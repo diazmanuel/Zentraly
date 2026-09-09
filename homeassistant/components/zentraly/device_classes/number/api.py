@@ -9,6 +9,8 @@ from .command_protocols import (
     HighPowerLimitCommands,
     HighVoltageLimitCommands,
     LowVoltageLimitCommands,
+    NumberRange,
+    NumberRangeCommands,
     TimerCommands,
 )
 
@@ -18,7 +20,6 @@ if TYPE_CHECKING:
 type NumberStateUpdate = dict[NumberCapability, Any]
 type NumberStateListener = Callable[[NumberStateUpdate], None]
 
-type NumberRange = tuple[float, float, float]
 type NumberReadBuilder = Callable[[int, str], dict[str, Any]]
 type NumberReadParser = Callable[[dict[str, Any], int], float]
 type NumberWriteBuilder = Callable[[int, str, float], dict[str, Any]]
@@ -56,25 +57,10 @@ class ZentralyNumberApi:
     ) -> NumberRange | None:
         """Return the model-specific range for a number capability."""
 
-        ranges = getattr(
-            self._device.commands,
-            "number_ranges",
-            None,
-        )
-
-        if not isinstance(ranges, dict):
+        if not self.supports(capability):
             return None
-
-        number_range = ranges.get(capability)
-
-        if (
-            not isinstance(number_range, tuple)
-            or len(number_range) != 3
-            or not all(isinstance(value, int | float) for value in number_range)
-        ):
-            return None
-
-        minimum, maximum, step = number_range
+        commands = cast(NumberRangeCommands, self._device.commands)
+        minimum, maximum, step = commands.number_ranges[capability]
 
         return (
             float(minimum),

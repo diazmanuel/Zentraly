@@ -8,6 +8,7 @@ from ..types import ClimateOperationMode
 from .capabilities import ClimateCapability
 from .command_protocols import (
     AwayTemperatureCommands,
+    ClimateConfigurationCommands,
     HeatDemandCommands,
     HumidityCommands,
     LocalTemperatureCommands,
@@ -15,6 +16,7 @@ from .command_protocols import (
     TargetTemperatureCommands,
     TemperatureOffsetCommands,
 )
+from .configuration import ClimateConfiguration
 
 if TYPE_CHECKING:
     from ...models import ZentralyDevice
@@ -33,6 +35,13 @@ class ZentralyClimateApi:
 
         self._state_listeners: set[ClimateStateListener] = set()
         self._remove_report_listener: Callable[[], None] | None = None
+
+    @property
+    def configuration(self) -> ClimateConfiguration:
+        """Return the model's shared climate configuration."""
+        return cast(
+            ClimateConfigurationCommands, self._device.commands
+        ).climate_configuration
 
     @property
     def device(self) -> ZentralyDevice:

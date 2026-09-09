@@ -77,15 +77,16 @@ class ZentralyClimate(ClimateEntity):
 
         self._device = device
         self._climate_api = climate_api or ZentralyClimateApi(device)
+        self._configuration = self._climate_api.configuration
 
         self._attr_unique_id = device.device_id
         self._attr_name = None
 
         self._attr_temperature_unit = UnitOfTemperature.CELSIUS
 
-        self._attr_target_temperature_step = 0.5
-        self._attr_min_temp = 5
-        self._attr_max_temp = 30
+        self._attr_target_temperature_step = self._configuration.temperature_step
+        self._attr_min_temp = self._configuration.minimum_temperature
+        self._attr_max_temp = self._configuration.maximum_temperature
 
         self._attr_current_temperature = None
         self._attr_current_humidity = None
@@ -210,18 +211,24 @@ class ZentralyClimate(ClimateEntity):
             supported_features |= ClimateEntityFeature.TARGET_TEMPERATURE
 
         if self._climate_api.supports(ClimateCapability.OPERATION_MODE):
-            supported_features |= ClimateEntityFeature.PRESET_MODE
-
+            modes = self._configuration.operation_modes
             self._attr_hvac_modes = [
-                HVACMode.OFF,
-                HVACMode.HEAT,
-                HVACMode.AUTO,
+                hvac_mode
+                for operation_mode, hvac_mode in (
+                    (ClimateOperationMode.OFF, HVACMode.OFF),
+                    (ClimateOperationMode.MANUAL, HVACMode.HEAT),
+                    (ClimateOperationMode.AUTO, HVACMode.AUTO),
+                )
+                if operation_mode in modes
             ]
-
-            self._attr_preset_modes = [
-                PRESET_NONE,
-                PRESET_AWAY,
-            ]
+            if (
+                ClimateOperationMode.AWAY in modes
+                and ClimateOperationMode.MANUAL in modes
+            ):
+                supported_features |= ClimateEntityFeature.PRESET_MODE
+                self._attr_preset_modes = [PRESET_NONE, PRESET_AWAY]
+            else:
+                self._attr_preset_modes = None
 
         else:
             self._attr_hvac_modes = [
@@ -411,8 +418,11 @@ class ZentralyClimate(ClimateEntity):
 
         self._normal_target_temperature = float(temperature)
 
-        if self._climate_api.supports(ClimateCapability.OPERATION_MODE):
-            self._apply_operation_mode(ClimateOperationMode.MANUAL)
+        if (
+            self._climate_api.supports(ClimateCapability.OPERATION_MODE)
+            and self._configuration.mode_after_setpoint is not None
+        ):
+            self._apply_operation_mode(self._configuration.mode_after_setpoint)
 
         self._update_target_temperature()
         self._update_hvac_action()
