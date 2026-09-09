@@ -1,9 +1,21 @@
 """Fixtures for Zentraly tests."""
 
 from collections.abc import Generator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from homeassistant.components.zentraly.models import ZentralyDevice
+
+
+@pytest.fixture
+def platform_device() -> MagicMock:
+    """Return a connected device for isolated platform behavior tests."""
+    device = MagicMock(spec=ZentralyDevice)
+    device.device_id = "ZTTIN0100000631"
+    device.connected = True
+    device.opentherm_connected = True
+    return device
 
 
 @pytest.fixture

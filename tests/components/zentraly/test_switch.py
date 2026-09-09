@@ -1,0 +1,51 @@
+"""Tests for Zentraly switch actions."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from homeassistant.components.zentraly.device_classes.switch.api import (
+    ZentralySwitchApi,
+)
+from homeassistant.components.zentraly.device_classes.switch.capabilities import (
+    SwitchCapability,
+)
+from homeassistant.components.zentraly.switch import ZentralySwitch
+
+
+@pytest.mark.parametrize(
+    ("action", "value"),
+    [
+        pytest.param("async_turn_on", True, id="on"),
+        pytest.param("async_turn_off", False, id="off"),
+    ],
+)
+@pytest.mark.parametrize(
+    "success", [pytest.param(True, id="success"), pytest.param(False, id="failure")]
+)
+async def test_power_action(
+    platform_device: MagicMock, action: str, value: bool, success: bool
+) -> None:
+    """Update the switch only after a successful power command."""
+    api = MagicMock(spec=ZentralySwitchApi)
+    api.async_get_power.return_value = not value
+    api.async_set_power.return_value = success
+    entity = ZentralySwitch(
+        device=platform_device, switch_api=api, capability=SwitchCapability.POWER
+    )
+    await entity.async_update()
+    with patch.object(entity, "async_write_ha_state"):
+        await getattr(entity, action)()
+    assert entity.is_on == (success == value)
+    api.async_set_power.assert_awaited_once_with(value)
+
+
+async def test_disconnected_action(platform_device: MagicMock) -> None:
+    """Do not send a power command through a disconnected gateway."""
+    platform_device.connected = False
+    api = MagicMock(spec=ZentralySwitchApi)
+    entity = ZentralySwitch(
+        device=platform_device, switch_api=api, capability=SwitchCapability.POWER
+    )
+    await entity.async_turn_on()
+    api.async_set_power.assert_not_awaited()
