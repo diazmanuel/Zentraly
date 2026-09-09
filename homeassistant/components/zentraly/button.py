@@ -12,6 +12,8 @@ from .device_classes.button.api import ZentralyButtonApi
 from .device_classes.button.capabilities import ButtonCapability
 from .models import ZentralyConfigEntry, ZentralyDevice
 
+PARALLEL_UPDATES = 0
+
 _OPENTHERM_CAPABILITIES = frozenset(
     {
         ButtonCapability.RESET_BOILER,

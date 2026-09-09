@@ -24,6 +24,8 @@ from .device_classes.climate.capabilities import ClimateCapability
 from .device_classes.types import ClimateOperationMode
 from .models import ZentralyConfigEntry, ZentralyDevice
 
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

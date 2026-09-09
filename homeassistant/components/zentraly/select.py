@@ -15,6 +15,8 @@ from .device_classes.select.capabilities import SelectCapability
 from .device_classes.types import SelectOperationMode
 from .models import ZentralyConfigEntry, ZentralyDevice
 
+PARALLEL_UPDATES = 0
+
 
 def _create_select_entities(
     device: ZentralyDevice,
