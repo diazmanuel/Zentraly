@@ -103,6 +103,7 @@ class ZentralyNumber(NumberEntity):
 
         self._cancel_timer_write: CALLBACK_TYPE | None = None
         self._pending_timer_value: float | None = None
+        self._timer_generation = 0
 
         self._attr_unique_id = f"{device.device_id}_{capability.value}"
         self._attr_translation_key = capability.value
@@ -158,6 +159,8 @@ class ZentralyNumber(NumberEntity):
     def _cancel_pending_timer_write(self) -> None:
         """Cancel a pending timer write."""
 
+        self._timer_generation += 1
+
         if self._cancel_timer_write is not None:
             self._cancel_timer_write()
             self._cancel_timer_write = None
@@ -181,7 +184,11 @@ class ZentralyNumber(NumberEntity):
         if not self._device.connected:
             return
 
+        generation = self._timer_generation
         success = await self._number_api.async_set_timer(value)
+
+        if generation != self._timer_generation:
+            return
 
         if success:
             self._attr_native_value = value
@@ -263,7 +270,11 @@ class ZentralyNumber(NumberEntity):
         value: float | None
 
         if self._capability is NumberCapability.TIMER:
+            generation = self._timer_generation
             value = await self._number_api.async_get_timer()
+
+            if generation != self._timer_generation:
+                return
 
         elif self._capability is NumberCapability.HIGH_VOLTAGE_LIMIT:
             value = await self._number_api.async_get_high_voltage_limit()
