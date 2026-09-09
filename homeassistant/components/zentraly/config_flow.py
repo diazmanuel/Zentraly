@@ -94,18 +94,11 @@ def _device_id_is_configured(
 
 def _child_limit_reached(
     entry: ConfigEntry,
+    parent_device_id: str,
 ) -> bool:
     """Return whether a parent reached its child-device limit."""
 
-    parent_device_id = entry.data.get(CONF_DEVICE_ID)
-
-    if not isinstance(parent_device_id, str):
-        return True
-
     max_children = get_max_child_devices(parent_device_id)
-
-    if max_children <= 0:
-        return True
 
     child_count = len(
         entry.get_subentries_of_type(
@@ -141,7 +134,7 @@ class ZentralyConfigFlow(HAConfigFlow, domain=DOMAIN):
         if not supports_child_devices(device_id):
             return {}
 
-        if _child_limit_reached(config_entry):
+        if _child_limit_reached(config_entry, device_id):
             return {}
 
         return {
@@ -289,7 +282,7 @@ class ZentralyDeviceSubentryFlow(ConfigSubentryFlow):
         if not supports_child_devices(parent_device_id):
             return self.async_abort(reason="unsupported_parent")
 
-        if _child_limit_reached(entry):
+        if _child_limit_reached(entry, parent_device_id):
             return self.async_abort(reason="max_children")
 
         errors: dict[str, str] = {}
@@ -320,9 +313,6 @@ class ZentralyDeviceSubentryFlow(ConfigSubentryFlow):
                     device_id,
                 ):
                     errors["base"] = "already_configured"
-
-                elif _child_limit_reached(entry):
-                    errors["base"] = "max_children"
 
                 else:
                     try:

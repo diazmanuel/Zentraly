@@ -439,8 +439,16 @@ async def test_child_device_success(
     }
 
 
+@pytest.mark.parametrize(
+    "mac",
+    [
+        pytest.param("invalid-mac", id="length"),
+        pytest.param("1020ba12316g", id="non-hex"),
+    ],
+)
 async def test_child_device_invalid_mac(
     hass: HomeAssistant,
+    mac: str,
 ) -> None:
     """Test an invalid child MAC address is rejected."""
 
@@ -465,7 +473,7 @@ async def test_child_device_invalid_mac(
         result["flow_id"],
         user_input={
             CONF_DEVICE_ID: CHILD_DEVICE_ID,
-            CONF_MAC: "invalid-mac",
+            CONF_MAC: mac,
         },
     )
 
@@ -475,9 +483,29 @@ async def test_child_device_invalid_mac(
 
     mock_validate.assert_not_awaited()
 
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_DEVICE_ID: CHILD_DEVICE_ID,
+        CONF_MAC: CHILD_MAC,
+    }
 
-async def test_child_device_validation_cannot_connect(
+
+@pytest.mark.parametrize(
+    ("exception", "error"),
+    [
+        pytest.param(ZentralyConnectionError, "cannot_connect", id="connection"),
+        pytest.param(ValueError, "invalid_device", id="value"),
+        pytest.param(TypeError, "invalid_device", id="type"),
+    ],
+)
+async def test_child_device_validation_error_recovery(
     hass: HomeAssistant,
+    exception: type[Exception],
+    error: str,
 ) -> None:
     """Test a child that cannot be reached is rejected."""
 
@@ -486,7 +514,7 @@ async def test_child_device_validation_cannot_connect(
 
     entry.runtime_data = SimpleNamespace(
         api=SimpleNamespace(
-            async_validate_child_device=AsyncMock(side_effect=ZentralyConnectionError)
+            async_validate_child_device=AsyncMock(side_effect=[exception(), None])
         )
     )
 
@@ -507,41 +535,17 @@ async def test_child_device_validation_cannot_connect(
     )
 
     assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"base": "cannot_connect"}
-
-
-async def test_child_device_invalid_response(
-    hass: HomeAssistant,
-) -> None:
-    """Test a child returning invalid protocol data is rejected."""
-
-    entry = _parent_entry()
-    entry.add_to_hass(hass)
-
-    entry.runtime_data = SimpleNamespace(
-        api=SimpleNamespace(
-            async_validate_child_device=AsyncMock(side_effect=ValueError)
-        )
-    )
-
-    result = await hass.config_entries.subentries.async_init(
-        (
-            entry.entry_id,
-            SUBENTRY_TYPE_DEVICE,
-        ),
-        context={"source": config_entries.SOURCE_USER},
-    )
+    assert result["errors"] == {"base": error}
 
     result = await hass.config_entries.subentries.async_configure(
         result["flow_id"],
-        user_input={
-            CONF_DEVICE_ID: CHILD_DEVICE_ID,
-            CONF_MAC: CHILD_MAC,
-        },
+        user_input={CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
     )
-
-    assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"base": "invalid_device"}
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_DEVICE_ID: CHILD_DEVICE_ID,
+        CONF_MAC: CHILD_MAC,
+    }
 
 
 async def test_child_device_unknown_model(
@@ -579,6 +583,16 @@ async def test_child_device_unknown_model(
 
     mock_validate.assert_not_awaited()
 
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_DEVICE_ID: CHILD_DEVICE_ID,
+        CONF_MAC: CHILD_MAC,
+    }
+
 
 async def test_zteim_cannot_be_added_as_child(
     hass: HomeAssistant,
@@ -615,9 +629,27 @@ async def test_zteim_cannot_be_added_as_child(
 
     mock_validate.assert_not_awaited()
 
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_DEVICE_ID: CHILD_DEVICE_ID,
+        CONF_MAC: CHILD_MAC,
+    }
 
+
+@pytest.mark.parametrize(
+    "unique_id",
+    [
+        pytest.param(CHILD_DEVICE_ID, id="unique-id"),
+        pytest.param(None, id="stored-data"),
+    ],
+)
 async def test_child_device_already_configured_as_entry(
     hass: HomeAssistant,
+    unique_id: str | None,
 ) -> None:
     """Test a device already configured independently cannot become a child."""
 
@@ -630,7 +662,7 @@ async def test_child_device_already_configured_as_entry(
 
     existing_entry = MockConfigEntry(
         domain=DOMAIN,
-        unique_id=CHILD_DEVICE_ID,
+        unique_id=unique_id,
         data={
             CONF_DEVICE_ID: CHILD_DEVICE_ID,
             CONF_MAC: CHILD_MAC,
@@ -678,8 +710,13 @@ async def test_child_flow_requires_loaded_parent(
     assert result["reason"] == "entry_not_loaded"
 
 
+@pytest.mark.parametrize(
+    "unique_id",
+    [pytest.param(DEVICE_ID, id="unique-id"), pytest.param(None, id="stored-data")],
+)
 async def test_zeroconf_device_already_configured_as_subentry(
     hass: HomeAssistant,
+    unique_id: str | None,
 ) -> None:
     """Test Zeroconf ignores a device already represented by a subentry."""
 
@@ -693,7 +730,7 @@ async def test_zeroconf_device_already_configured_as_subentry(
             {
                 "subentry_type": SUBENTRY_TYPE_DEVICE,
                 "title": DEVICE_ID,
-                "unique_id": DEVICE_ID,
+                "unique_id": unique_id,
                 "data": {
                     CONF_DEVICE_ID: DEVICE_ID,
                     CONF_MAC: MAC,
@@ -713,3 +750,145 @@ async def test_zeroconf_device_already_configured_as_subentry(
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        pytest.param({}, id="missing-id"),
+        pytest.param({CONF_DEVICE_ID: 123}, id="invalid-id"),
+    ],
+)
+def test_parent_without_device_id_has_no_subentry_flow(data: dict[str, object]) -> None:
+    """An incomplete parent entry cannot expose child setup."""
+    entry = MockConfigEntry(domain=DOMAIN, data=data)
+    assert ZentralyConfigFlow.async_get_supported_subentry_types(entry) == {}
+
+
+@pytest.mark.parametrize(
+    "device_id",
+    [
+        pytest.param(None, id="missing-id"),
+        pytest.param(ZTEIM_DEVICE_ID, id="unsupported-model"),
+    ],
+)
+async def test_child_flow_parent_changes(
+    hass: HomeAssistant, device_id: str | None
+) -> None:
+    """Recheck the parent when submitting an already open form."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_DEVICE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    hass.config_entries.async_update_entry(entry, data={CONF_DEVICE_ID: device_id})
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unsupported_parent"
+
+
+async def test_child_limit_reached_with_form_open(hass: HomeAssistant) -> None:
+    """A child added elsewhere prevents another submission."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_DEVICE),
+        context={"source": "device"},
+    )
+    other = _parent_entry(
+        subentries_data=[
+            {
+                "subentry_type": SUBENTRY_TYPE_DEVICE,
+                "title": CHILD_DEVICE_ID,
+                "unique_id": CHILD_DEVICE_ID,
+                "data": {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+            }
+        ]
+    )
+    hass.config_entries.async_add_subentry(entry, next(iter(other.subentries.values())))
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "max_children"
+
+
+@pytest.mark.parametrize(
+    "unique_id",
+    [
+        pytest.param(CHILD_DEVICE_ID, id="unique-id"),
+        pytest.param(None, id="stored-data"),
+    ],
+)
+async def test_child_already_configured_as_subentry(
+    hass: HomeAssistant, unique_id: str | None
+) -> None:
+    """Reject children belonging to another parent, then allow correction."""
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_DEVICE_ID: "ZTTIN0100000999"},
+        subentries_data=[
+            {
+                "subentry_type": SUBENTRY_TYPE_DEVICE,
+                "title": CHILD_DEVICE_ID,
+                "unique_id": unique_id,
+                "data": {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+            }
+        ],
+    )
+    existing.add_to_hass(hass)
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    validate = AsyncMock()
+    entry.runtime_data = SimpleNamespace(
+        api=SimpleNamespace(async_validate_child_device=validate)
+    )
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_DEVICE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+    )
+    assert result["errors"] == {"base": "already_configured"}
+    validate.assert_not_awaited()
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        user_input={CONF_DEVICE_ID: " ztbin0100000022 ", CONF_MAC: "AA-BB-CC-DD-EE-FF"},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_DEVICE_ID: "ZTBIN0100000022",
+        CONF_MAC: "aabbccddeeff",
+    }
+    validate.assert_awaited_once_with("ZTBIN0100000022", "aabbccddeeff")
+
+
+async def test_zeroconf_ignores_unrelated_subentries(hass: HomeAssistant) -> None:
+    """An unrelated child must not prevent discovery of a new parent."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_DEVICE_ID: "ZTTIN0100000999"},
+        subentries_data=[
+            {
+                "subentry_type": SUBENTRY_TYPE_DEVICE,
+                "title": CHILD_DEVICE_ID,
+                "unique_id": CHILD_DEVICE_ID,
+                "data": {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+            }
+        ],
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=_zeroconf_info(),
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "auth"
