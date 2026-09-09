@@ -1,6 +1,7 @@
 """Tests for Zentraly API diagnostics."""
 
 import asyncio
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,6 +17,35 @@ from homeassistant.components.zentraly.exceptions import (
     ZentralyAuthenticationError,
     ZentralyConnectionError,
 )
+
+
+def test_gateway_transition_logs(caplog: pytest.LogCaptureFixture) -> None:
+    """Repeated failures produce one outage and one recovery message."""
+    caplog.set_level(logging.INFO, logger="homeassistant.components.zentraly.api")
+    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api._set_connected(True)
+    api._handle_connection_lost("disconnected")
+    api._handle_connection_lost("disconnected again")
+    api._log_connection_outage("Connection attempts exhausted")
+    assert caplog.text.count("gateway unavailable") == 1
+    api._set_connected(True)
+    api._set_connected(True)
+    assert caplog.text.count("connection restored") == 1
+    api._handle_connection_lost("second outage")
+    assert caplog.text.count("gateway unavailable") == 2
+
+
+async def test_intentional_disconnect_is_quiet(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unloading a healthy connection is not reported as an outage."""
+    caplog.set_level(logging.INFO, logger="homeassistant.components.zentraly.api")
+    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api._set_connected(True)
+    await api.async_disconnect()
+    assert not api.connected
+    assert "gateway unavailable" not in caplog.text
+    assert "connection restored" not in caplog.text
 
 
 @pytest.mark.parametrize(

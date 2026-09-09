@@ -115,6 +115,8 @@ class ZentralyBinarySensor(BinarySensorEntity):
 
         await super().async_added_to_hass()
 
+        self.async_on_remove(self._device.add_state_listener(self._handle_device_state))
+
         self.async_on_remove(
             self._device.add_connection_state_listener(self._handle_connection_state)
         )
@@ -138,6 +140,21 @@ class ZentralyBinarySensor(BinarySensorEntity):
         """Refresh binary sensor state periodically."""
 
         await self.async_update()
+        self.async_write_ha_state()
+
+    @property
+    @override
+    def available(self) -> bool:
+        """Return availability independently of a missing attribute value."""
+        return self._device.available and self._device.connected
+
+    def _handle_device_state(self) -> None:
+        """Publish shared device state without starting another query."""
+        if (
+            self._capability in _OPENTHERM_CAPABILITIES
+            and not self._device.opentherm_connected
+        ):
+            self._attr_is_on = None
         self.async_write_ha_state()
 
     def _handle_connection_state(

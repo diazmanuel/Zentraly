@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -12,6 +13,7 @@ from .api import CommandResult, ConnectionStateListener, ReportListener, Zentral
 from .commands.base import ZentralyDeviceCommands
 from .commands.protocol import ResponseStatus
 from .const import DOMAIN
+from .device_classes.sensor.capabilities import SensorCapability
 from .device_classes.types import ZentralyOutputType
 from .devices.device import DeviceModel
 from .exceptions import (
@@ -20,6 +22,8 @@ from .exceptions import (
     ZentralyInvalidResponseError,
     ZentralyValidationError,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -36,6 +40,96 @@ class ZentralyDevice:
     output_type: ZentralyOutputType | None = None
     firmware_version: str | None = None
     hardware_version: str | None = None
+    _responding: bool = field(default=True, init=False)
+    _state_listeners: set[Callable[[], None]] = field(default_factory=set, init=False)
+    _report_listeners: set[ReportListener] = field(default_factory=set, init=False)
+    _remove_report_listener: Callable[[], None] | None = field(default=None, init=False)
+
+    @property
+    def available(self) -> bool:
+        """Return whether the gateway and this device can communicate."""
+        return self.connected and self._responding
+
+    def set_output_type(self, value: ZentralyOutputType) -> None:
+        """Update shared output state and notify dependent entities."""
+        if self.output_type is value:
+            return
+        self.output_type = value
+        self._notify_state()
+
+    def _notify_state(self) -> None:
+        """Publish a shared device state change."""
+        for listener in tuple(self._state_listeners):
+            listener()
+
+    def _set_responding(self, responding: bool) -> None:
+        """Track device reachability separately from the gateway transport."""
+        if self._responding == responding:
+            return
+        self._responding = responding
+        if responding:
+            _LOGGER.info(
+                "Zentraly device responding again: device_id=%s mac=%s",
+                self.device_id,
+                self.mac,
+            )
+        else:
+            _LOGGER.warning(
+                "Zentraly device not responding: device_id=%s mac=%s",
+                self.device_id,
+                self.mac,
+            )
+        self._notify_state()
+
+    def add_state_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
+        """Subscribe to shared availability and output changes."""
+        self._state_listeners.add(listener)
+        self._ensure_report_listener()
+
+        def remove_listener() -> None:
+            self._state_listeners.discard(listener)
+            self._remove_unused_report_listener()
+
+        return remove_listener
+
+    def _ensure_report_listener(self) -> None:
+        """Subscribe once for shared state and capability reports."""
+        if self._remove_report_listener is None:
+            self._remove_report_listener = self.api.add_report_listener(
+                self.mac, self._handle_report
+            )
+
+    def _remove_unused_report_listener(self) -> None:
+        """Release the subscription after the last entity is removed."""
+        if (
+            not self._state_listeners
+            and not self._report_listeners
+            and self._remove_report_listener is not None
+        ):
+            self._remove_report_listener()
+            self._remove_report_listener = None
+
+    def _handle_report(self, report_data: list[dict[str, Any]]) -> None:
+        """Apply shared state before dispatching capability updates."""
+        parser = getattr(self.commands, "parse_report_entry", None)
+        if callable(parser):
+            for entry in report_data:
+                try:
+                    result = parser(entry)
+                except TypeError, ValueError:
+                    continue
+                if result is None:
+                    continue
+                capability, value = result
+                if not self.supports(capability):
+                    continue
+                self._set_responding(True)
+                if capability is SensorCapability.OUTPUT_TYPE and isinstance(
+                    value, ZentralyOutputType
+                ):
+                    self.set_output_type(value)
+        for listener in tuple(self._report_listeners):
+            listener(report_data)
 
     @property
     def connected(self) -> bool:
@@ -124,10 +218,14 @@ class ZentralyDevice:
     ) -> Callable[[], None]:
         """Register a report listener for this device."""
 
-        return self.api.add_report_listener(
-            self.mac,
-            listener,
-        )
+        self._report_listeners.add(listener)
+        self._ensure_report_listener()
+
+        def remove_listener() -> None:
+            self._report_listeners.discard(listener)
+            self._remove_unused_report_listener()
+
+        return remove_listener
 
     async def async_execute_command(
         self,
@@ -135,9 +233,15 @@ class ZentralyDevice:
     ) -> CommandResult | None:
         """Execute a command using the shared Zentraly connection."""
 
-        return await self.api.async_execute_command(
+        result = await self.api.async_execute_command(
             command_builder,
         )
+        if self.connected:
+            if result is None:
+                self._set_responding(False)
+            elif result[1].get("status") == ResponseStatus.SUCCESS:
+                self._set_responding(True)
+        return result
 
     async def async_execute_action_command(
         self,

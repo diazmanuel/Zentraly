@@ -4,8 +4,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
-from ..sensor.capabilities import SensorCapability
-from ..types import ZentralyOutputType
 from .capabilities import SwitchCapability
 from .command_protocols import (
     AlwaysOnDisplayCommands,
@@ -119,12 +117,6 @@ class ZentralySwitchApi:
                 continue
 
             capability, value = result
-
-            if capability is SensorCapability.OUTPUT_TYPE:
-                if isinstance(value, ZentralyOutputType):
-                    self._device.output_type = value
-
-                continue
 
             if not isinstance(capability, SwitchCapability):
                 continue

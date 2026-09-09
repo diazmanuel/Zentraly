@@ -51,6 +51,18 @@ def schedule() -> Generator[MagicMock]:
         yield mock
 
 
+async def test_missing_timer_is_unknown(
+    timer: ZentralyNumber, number_api: MagicMock
+) -> None:
+    """A missing reading clears the old timer without declaring a device outage."""
+    await timer.async_update()
+    assert timer.native_value == 10.0
+    number_api.async_get_timer.return_value = None
+    await timer.async_update()
+    assert timer.native_value is None
+    assert timer.available
+
+
 @pytest.mark.parametrize(
     "success", [pytest.param(True, id="success"), pytest.param(False, id="failure")]
 )

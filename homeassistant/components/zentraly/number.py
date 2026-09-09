@@ -148,6 +148,8 @@ class ZentralyNumber(NumberEntity):
 
         await super().async_added_to_hass()
 
+        self.async_on_remove(self._device.add_state_listener(self.async_write_ha_state))
+
         self.async_on_remove(
             self._device.add_connection_state_listener(self._handle_connection_state)
         )
@@ -230,6 +232,12 @@ class ZentralyNumber(NumberEntity):
         await self.async_update()
         self.async_write_ha_state()
 
+    @property
+    @override
+    def available(self) -> bool:
+        """Return availability independently of a missing attribute value."""
+        return self._device.available and self._device.connected
+
     def _handle_connection_state(
         self,
         connected: bool,
@@ -305,8 +313,7 @@ class ZentralyNumber(NumberEntity):
         else:
             return
 
-        if value is not None:
-            self._attr_native_value = value
+        self._attr_native_value = value
 
     @override
     @translate_action_errors

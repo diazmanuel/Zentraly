@@ -196,6 +196,8 @@ class ZentralySensor(SensorEntity):
 
         await super().async_added_to_hass()
 
+        self.async_on_remove(self._device.add_state_listener(self._handle_device_state))
+
         self.async_on_remove(
             self._device.add_connection_state_listener(self._handle_connection_state)
         )
@@ -220,6 +222,24 @@ class ZentralySensor(SensorEntity):
         """Refresh sensor state periodically as a synchronization fallback."""
 
         await self.async_update()
+        self.async_write_ha_state()
+
+    @property
+    @override
+    def available(self) -> bool:
+        """Return availability independently of a missing attribute value."""
+        return self._device.available and self._device.connected
+
+    def _handle_device_state(self) -> None:
+        """Publish shared device state without starting another query."""
+        if (
+            self._capability in _OPENTHERM_CAPABILITIES
+            and not self._device.opentherm_connected
+        ):
+            self._attr_native_value = None
+        if self._capability is SensorCapability.OUTPUT_TYPE:
+            value = self._device.output_type
+            self._attr_native_value = value.value if value is not None else None
         self.async_write_ha_state()
 
     def _handle_connection_state(
@@ -286,6 +306,7 @@ class ZentralySensor(SensorEntity):
             output_type = await self._sensor_api.async_get_output_type()
 
             if output_type is None:
+                self._attr_native_value = None
                 return
 
             self._attr_native_value = output_type.value

@@ -3,8 +3,6 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from ..sensor.capabilities import SensorCapability
-from ..types import ZentralyOutputType
 from .capabilities import BinarySensorCapability
 
 if TYPE_CHECKING:
@@ -104,19 +102,6 @@ class ZentralyBinarySensorApi:
                 continue
 
             capability, value = result
-
-            #
-            # OUTPUT_TYPE is shared device state.
-            #
-            # Update it here as well so OpenTherm binary sensors do not
-            # depend on the order in which platform listeners run.
-            #
-
-            if capability is SensorCapability.OUTPUT_TYPE:
-                if isinstance(value, ZentralyOutputType):
-                    self._device.output_type = value
-
-                continue
 
             if not isinstance(capability, BinarySensorCapability):
                 continue
