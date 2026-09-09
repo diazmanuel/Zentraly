@@ -370,6 +370,10 @@ async def async_setup_entry(
             translation_placeholders={"device_id": device.device_id},
         )
 
+    entry.async_on_unload(
+        api.add_authentication_error_listener(lambda: entry.async_start_reauth(hass))
+    )
+
     await api.async_connect()
 
     entry.runtime_data = runtime_data

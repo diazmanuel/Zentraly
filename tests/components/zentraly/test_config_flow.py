@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from homeassistant import config_entries
+from homeassistant.components.zentraly import _async_reload_entry
 from homeassistant.components.zentraly.config_flow import (
     SUBENTRY_TYPE_DEVICE,
     ZentralyConfigFlow,
@@ -30,6 +31,113 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from tests.common import MockConfigEntry
 
 pytestmark = pytest.mark.usefixtures("mock_setup_entry")
+
+
+@pytest.mark.parametrize(
+    ("error", "key"),
+    [
+        pytest.param(ZentralyAuthenticationError, "invalid_auth", id="password"),
+        pytest.param(ZentralyConnectionError, "cannot_connect", id="connection"),
+    ],
+)
+async def test_reauth_recovery(
+    hass: HomeAssistant, error: type[Exception], key: str
+) -> None:
+    """Retry reauthentication without replacing identity or child entries."""
+    entry = _parent_entry(
+        subentries_data=[
+            {
+                "subentry_type": SUBENTRY_TYPE_DEVICE,
+                "title": CHILD_DEVICE_ID,
+                "unique_id": CHILD_DEVICE_ID,
+                "data": {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC},
+            }
+        ]
+    )
+    entry.add_to_hass(hass)
+    original = dict(entry.data)
+    children = dict(entry.subentries)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["step_id"] == "auth"
+    with patch(
+        "homeassistant.components.zentraly.config_flow.ZentralyApi.async_validate_password",
+        side_effect=[error(), MAC],
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_PASSWORD: "new-password"}
+        )
+        assert result["errors"] == {"base": key}
+        assert entry.data == original
+        with patch.object(
+            hass.config_entries, "async_reload", return_value=True
+        ) as reload:
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"], {CONF_PASSWORD: "new-password"}
+            )
+            await hass.async_block_till_done()
+        reload.assert_awaited_once_with(entry.entry_id)
+    assert result["reason"] == "reauth_successful"
+    assert entry.data == original | {CONF_PASSWORD: "new-password"}
+    assert entry.unique_id == DEVICE_ID
+    assert entry.subentries == children
+
+
+async def test_reauth_wrong_device(hass: HomeAssistant) -> None:
+    """Do not save credentials validated against a different device."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    original = dict(entry.data)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    with patch(
+        "homeassistant.components.zentraly.config_flow.ZentralyApi.async_validate_password",
+        return_value="001122334455",
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_PASSWORD: "new-password"}
+        )
+    assert result["reason"] == "wrong_device"
+    assert entry.data == original
+
+
+@pytest.mark.parametrize(
+    "password",
+    [
+        pytest.param("new-password", id="changed"),
+        pytest.param("test-password", id="unchanged"),
+    ],
+)
+async def test_reauth_with_reload_listener(hass: HomeAssistant, password: str) -> None:
+    """Reload once with a registered listener, even if the password is unchanged."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    entry.add_update_listener(_async_reload_entry)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    with (
+        patch(
+            "homeassistant.components.zentraly.config_flow.ZentralyApi.async_validate_password",
+            return_value=MAC.upper(),
+        ),
+        patch.object(hass.config_entries, "async_reload", return_value=True) as reload,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_PASSWORD: password}
+        )
+        await hass.async_block_till_done()
+    assert result["reason"] == "reauth_successful"
+    reload.assert_awaited_once_with(entry.entry_id)
+
 
 DEVICE_ID = "ZTTIN0100000631"
 CHILD_DEVICE_ID = "ZTBIN0100000021"

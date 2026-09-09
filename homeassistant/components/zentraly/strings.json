@@ -2,7 +2,9 @@
   "config": {
     "abort": {
       "already_configured": "This device is already configured.",
+      "reauth_successful": "Reauthentication was successful.",
       "unsupported_device": "This Zentraly device is not supported for automatic setup.",
+      "wrong_device": "The device does not match the configured Zentraly device.",
       "zeroconf_only": "Zentraly devices can only be added after being discovered on the local network."
     },
     "error": {
