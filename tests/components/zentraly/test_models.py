@@ -11,6 +11,24 @@ from homeassistant.components.zentraly.device_classes.sensor.api import (
     ZentralySensorApi,
 )
 from homeassistant.components.zentraly.device_classes.types import ZentralyOutputType
+from homeassistant.components.zentraly.exceptions import ZentralyConnectionBusyError
+
+
+async def test_saturation_preserves_device_availability() -> None:
+    """An unsent request says nothing about whether a child is responding."""
+    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api._set_connected(True)
+    device = create_device(api, "ZTBIN0100000001", "bb")
+    with (
+        patch.object(
+            api._connection,
+            "async_send_command",
+            side_effect=ZentralyConnectionBusyError,
+        ),
+        pytest.raises(ZentralyConnectionBusyError),
+    ):
+        await device.async_execute_command(lambda rid: {})
+    assert device.available
 
 
 @pytest.mark.parametrize(

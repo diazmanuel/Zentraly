@@ -206,6 +206,9 @@
     "command_rejected": {
       "message": "The device rejected the action."
     },
+    "connection_busy": {
+      "message": "The Zentraly connection is busy. Please try again later."
+    },
     "invalid_action": {
       "message": "The requested value or operation is not supported by this device."
     },

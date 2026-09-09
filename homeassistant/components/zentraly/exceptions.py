@@ -17,6 +17,12 @@ class ZentralyConnectionError(ZentralyApiError):
     translation_key = "cannot_connect"
 
 
+class ZentralyConnectionBusyError(ZentralyConnectionError):
+    """A request could not be sent because the local connection was saturated."""
+
+    translation_key = "connection_busy"
+
+
 class ZentralyInvalidResponseError(ZentralyApiError):
     """The device returned an invalid response."""
 
