@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
 from .capabilities import ButtonCapability
 from .command_protocols import ResetBoilerCommands, ResetDeviceCommands
 
@@ -51,23 +52,20 @@ class ZentralyButtonApi:
         """Execute a button action on the device."""
 
         if not self.supports(capability):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
         if (
             capability in _OPENTHERM_CAPABILITIES
             and not self._device.opentherm_connected
         ):
-            return False
+            raise ZentralyValidationError("Unsupported action")
 
-        result = await self._device.async_execute_command(
+        result = await self._device.async_execute_action_command(
             lambda rid: builder(
                 rid,
                 self._device.mac,
             )
         )
-
-        if result is None:
-            return False
 
         rid, response = result
 
@@ -77,8 +75,8 @@ class ZentralyButtonApi:
                 rid,
             )
 
-        except TypeError, ValueError:
-            return False
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         return True
 

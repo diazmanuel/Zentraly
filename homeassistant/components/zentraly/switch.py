@@ -10,9 +10,15 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
+from .actions import translate_action_errors
 from .api import SCAN_INTERVAL
 from .device_classes.switch.api import ZentralySwitchApi
 from .device_classes.switch.capabilities import SwitchCapability
+from .exceptions import (
+    ZentralyApiError,
+    ZentralyConnectionError,
+    ZentralyValidationError,
+)
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0
@@ -247,6 +253,7 @@ class ZentralySwitch(SwitchEntity):
             self._attr_is_on = value
 
     @override
+    @translate_action_errors
     async def async_turn_on(
         self,
         **kwargs: Any,
@@ -256,12 +263,13 @@ class ZentralySwitch(SwitchEntity):
         success = await self._async_set_state(True)
 
         if not success:
-            return
+            raise ZentralyApiError("Action failed")
 
         self._attr_is_on = True
         self.async_write_ha_state()
 
     @override
+    @translate_action_errors
     async def async_turn_off(
         self,
         **kwargs: Any,
@@ -271,7 +279,7 @@ class ZentralySwitch(SwitchEntity):
         success = await self._async_set_state(False)
 
         if not success:
-            return
+            raise ZentralyApiError("Action failed")
 
         self._attr_is_on = False
         self.async_write_ha_state()
@@ -285,7 +293,7 @@ class ZentralySwitch(SwitchEntity):
         self._update_availability(self._device.connected)
 
         if not self._attr_available:
-            return False
+            raise ZentralyConnectionError("Device unavailable")
 
         if self._capability is SwitchCapability.POWER:
             return await self._switch_api.async_set_power(enabled)
@@ -317,7 +325,7 @@ class ZentralySwitch(SwitchEntity):
         if self._capability is SwitchCapability.HIGH_POWER_PROTECTION:
             return await self._switch_api.async_set_high_power_protection(enabled)
 
-        return False
+        raise ZentralyValidationError("Unsupported switch action")
 
     @property
     @override

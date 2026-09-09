@@ -12,6 +12,7 @@ from homeassistant.components.zentraly.device_classes.number.api import (
 from homeassistant.components.zentraly.device_classes.number.capabilities import (
     NumberCapability,
 )
+from homeassistant.components.zentraly.exceptions import ZentralyConnectionError
 from homeassistant.components.zentraly.models import ZentralyDevice
 from homeassistant.components.zentraly.number import ZentralyNumber
 from homeassistant.core import HomeAssistant
@@ -138,6 +139,21 @@ async def test_current_write_failure_recovers_device_value(
 
     number_api.async_get_timer.assert_awaited_once()
     assert timer.native_value == 10.0
+
+
+async def test_deferred_error_is_logged_and_recovers(
+    timer: ZentralyNumber,
+    number_api: MagicMock,
+    schedule: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Deferred actions report failure in logs and restore the device value."""
+    number_api.async_set_timer.side_effect = ZentralyConnectionError("No response")
+    await timer.async_set_native_value(30)
+    await schedule.call_args.args[2](dt_util.utcnow())
+    assert "Timer write failed" in caplog.text
+    assert timer.native_value == 10.0
+    number_api.async_get_timer.assert_awaited_once()
 
 
 @pytest.mark.parametrize(

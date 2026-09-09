@@ -23,7 +23,7 @@ from homeassistant.const import (
 from homeassistant.core import callback
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
-from .api import ZentralyApi, ZentralyAuthenticationError, ZentralyConnectionError
+from .api import ZentralyApi
 from .const import DOMAIN
 from .devices.device import (
     DeviceModel,
@@ -33,6 +33,7 @@ from .devices.device import (
     supports_child_devices,
     supports_zeroconf_setup,
 )
+from .exceptions import ZentralyAuthenticationError, ZentralyConnectionError
 
 _LOGGER = logging.getLogger(__name__)
 

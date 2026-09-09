@@ -1,5 +1,6 @@
 """Tests for Zentraly switch actions."""
 
+from contextlib import AbstractContextManager, nullcontext
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,6 +12,7 @@ from homeassistant.components.zentraly.device_classes.switch.capabilities import
     SwitchCapability,
 )
 from homeassistant.components.zentraly.switch import ZentralySwitch
+from homeassistant.exceptions import HomeAssistantError
 
 
 @pytest.mark.parametrize(
@@ -21,10 +23,18 @@ from homeassistant.components.zentraly.switch import ZentralySwitch
     ],
 )
 @pytest.mark.parametrize(
-    "success", [pytest.param(True, id="success"), pytest.param(False, id="failure")]
+    ("success", "expectation"),
+    [
+        pytest.param(True, nullcontext(), id="success"),
+        pytest.param(False, pytest.raises(HomeAssistantError), id="failure"),
+    ],
 )
 async def test_power_action(
-    platform_device: MagicMock, action: str, value: bool, success: bool
+    platform_device: MagicMock,
+    action: str,
+    value: bool,
+    success: bool,
+    expectation: AbstractContextManager,
 ) -> None:
     """Update the switch only after a successful power command."""
     api = MagicMock(spec=ZentralySwitchApi)
@@ -34,7 +44,7 @@ async def test_power_action(
         device=platform_device, switch_api=api, capability=SwitchCapability.POWER
     )
     await entity.async_update()
-    with patch.object(entity, "async_write_ha_state"):
+    with patch.object(entity, "async_write_ha_state"), expectation:
         await getattr(entity, action)()
     assert entity.is_on == (success == value)
     api.async_set_power.assert_awaited_once_with(value)
@@ -47,5 +57,6 @@ async def test_disconnected_action(platform_device: MagicMock) -> None:
     entity = ZentralySwitch(
         device=platform_device, switch_api=api, capability=SwitchCapability.POWER
     )
-    await entity.async_turn_on()
+    with pytest.raises(HomeAssistantError):
+        await entity.async_turn_on()
     api.async_set_power.assert_not_awaited()

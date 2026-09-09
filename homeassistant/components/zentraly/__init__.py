@@ -20,14 +20,11 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_track_time_interval
 
-from .api import (
-    SCAN_INTERVAL,
-    ZentralyApi,
-    ZentralyAuthenticationError,
-    ZentralyConnectionError,
-)
+from .api import SCAN_INTERVAL, ZentralyApi
+from .const import DOMAIN
 from .devices import get_device_commands
 from .devices.device import DeviceModel, get_device_model, get_device_platforms
+from .exceptions import ZentralyAuthenticationError, ZentralyConnectionError
 from .models import ZentralyConfigEntry, ZentralyData, ZentralyDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,7 +42,11 @@ def create_device(
     device_model = get_device_model(device_id)
 
     if device_model is DeviceModel.UNKNOWN:
-        raise ConfigEntryError(f"Unsupported Zentraly device model: {device_id}")
+        raise ConfigEntryError(
+            translation_domain=DOMAIN,
+            translation_key="unsupported_model",
+            translation_placeholders={"device_id": device_id},
+        )
 
     commands = get_device_commands(device_model)
 
@@ -277,16 +278,24 @@ async def async_setup_entry(
 
     except ZentralyAuthenticationError as err:
         raise ConfigEntryAuthFailed(
-            f"Authentication failed for Zentraly device {api.device_id}"
+            translation_domain=DOMAIN,
+            translation_key="authentication_failed",
+            translation_placeholders={"device_id": api.device_id},
         ) from err
 
     except ZentralyConnectionError as err:
         raise ConfigEntryNotReady(
-            f"Unable to connect to Zentraly device {api.device_id}"
+            translation_domain=DOMAIN,
+            translation_key="setup_cannot_connect",
+            translation_placeholders={"device_id": api.device_id},
         ) from err
 
     if mac != entry.data[CONF_MAC]:
-        raise ConfigEntryNotReady(f"Unexpected Zentraly device at {api.host}")
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="unexpected_device",
+            translation_placeholders={"host": api.host},
+        )
 
     device = create_device(
         api=api,
@@ -317,12 +326,16 @@ async def async_setup_entry(
 
         if not isinstance(child_device_id, str):
             raise ConfigEntryError(
-                f"Missing device ID for Zentraly subentry {subentry_id}"
+                translation_domain=DOMAIN,
+                translation_key="missing_device_id",
+                translation_placeholders={"subentry_id": subentry_id},
             )
 
         if not isinstance(child_mac, str):
             raise ConfigEntryError(
-                f"Missing MAC address for Zentraly subentry {subentry_id}"
+                translation_domain=DOMAIN,
+                translation_key="missing_mac",
+                translation_placeholders={"subentry_id": subentry_id},
             )
 
         child = create_device(
@@ -352,8 +365,9 @@ async def async_setup_entry(
 
     if not platforms:
         raise ConfigEntryError(
-            "No supported Home Assistant platforms for "
-            f"Zentraly device {device.device_id}"
+            translation_domain=DOMAIN,
+            translation_key="no_platforms",
+            translation_placeholders={"device_id": device.device_id},
         )
 
     await api.async_connect()

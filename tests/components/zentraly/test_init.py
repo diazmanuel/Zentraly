@@ -2,10 +2,18 @@
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from homeassistant.components.zentraly import create_device
+from homeassistant.components.zentraly.api import ZentralyApi
 from homeassistant.components.zentraly.const import DOMAIN
 from homeassistant.components.zentraly.devices.device import (
     DeviceModel,
     get_device_platforms,
+)
+from homeassistant.components.zentraly.exceptions import (
+    ZentralyAuthenticationError,
+    ZentralyConnectionError,
 )
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
@@ -17,6 +25,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import device_registry as dr
 
 from tests.common import MockConfigEntry
@@ -35,6 +44,108 @@ ZTEIM_MAC = "aabbccddeeff"
 PASSWORD = "test-password"
 
 SUBENTRY_TYPE_DEVICE = "device"
+
+
+@pytest.mark.parametrize(
+    ("error", "expected", "key"),
+    [
+        pytest.param(
+            ZentralyAuthenticationError,
+            ConfigEntryState.SETUP_ERROR,
+            "authentication_failed",
+            id="authentication",
+        ),
+        pytest.param(
+            ZentralyConnectionError,
+            ConfigEntryState.SETUP_RETRY,
+            "setup_cannot_connect",
+            id="connection",
+        ),
+    ],
+)
+async def test_translated_setup_error(
+    hass: HomeAssistant,
+    error: type[Exception],
+    expected: ConfigEntryState,
+    key: str,
+) -> None:
+    """Setup failures expose translated messages with the device identifier."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    with (
+        patch(
+            "homeassistant.components.zentraly.ZentralyApi.async_validate_password",
+            side_effect=error,
+        ),
+    ):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is expected
+    assert entry.error_reason_translation_key == key
+    assert entry.error_reason_translation_placeholders == {
+        "device_id": PARENT_DEVICE_ID
+    }
+
+
+def test_translated_unsupported_model() -> None:
+    """Unsupported models expose a translation key instead of hardcoded UI text."""
+    api = ZentralyApi(HOST, PORT, PASSWORD, "UNKNOWN")
+    with pytest.raises(ConfigEntryError) as exc:
+        create_device(api, "UNKNOWN", PARENT_MAC)
+    assert exc.value.translation_key == "unsupported_model"
+    assert exc.value.translation_placeholders == {"device_id": "UNKNOWN"}
+
+
+@pytest.mark.parametrize(
+    ("data", "key"),
+    [
+        pytest.param({CONF_MAC: CHILD_MAC}, "missing_device_id", id="id"),
+        pytest.param({CONF_DEVICE_ID: CHILD_DEVICE_ID}, "missing_mac", id="mac"),
+    ],
+)
+async def test_translated_invalid_subentry(
+    hass: HomeAssistant, data: dict[str, str], key: str
+) -> None:
+    """Invalid stored child data produces a localized initialization error."""
+    entry = _parent_entry(
+        subentries_data=[
+            {
+                "subentry_type": "device",
+                "title": "Child",
+                "unique_id": CHILD_DEVICE_ID,
+                "data": data,
+            }
+        ]
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch(
+            "homeassistant.components.zentraly.ZentralyApi.async_validate_password",
+            return_value=PARENT_MAC,
+        ),
+    ):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert entry.error_reason_translation_key == key
+    assert entry.error_reason_translation_placeholders == {
+        "subentry_id": next(iter(entry.subentries))
+    }
+
+
+async def test_translated_no_platforms(hass: HomeAssistant) -> None:
+    """A model without platforms reports a translated setup error."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    with (
+        patch(
+            "homeassistant.components.zentraly.ZentralyApi.async_validate_password",
+            return_value=PARENT_MAC,
+        ),
+        patch(
+            "homeassistant.components.zentraly.get_runtime_platforms", return_value=[]
+        ),
+    ):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.error_reason_translation_key == "no_platforms"
 
 
 def _parent_entry(

@@ -8,8 +8,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .actions import translate_action_errors
 from .device_classes.button.api import ZentralyButtonApi
 from .device_classes.button.capabilities import ButtonCapability
+from .exceptions import ZentralyApiError, ZentralyConnectionError
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0
@@ -138,18 +140,23 @@ class ZentralyButton(ButtonEntity):
         return True
 
     @override
+    @translate_action_errors
     async def async_press(self) -> None:
         """Handle the button press."""
 
         if not self.available:
-            return
+            raise ZentralyConnectionError("Device unavailable")
 
         if self._capability is ButtonCapability.RESET_DEVICE:
-            await self._button_api.async_reset_device()
+            success = await self._button_api.async_reset_device()
+            if not success:
+                raise ZentralyApiError("Reset failed")
             return
 
         if self._capability is ButtonCapability.RESET_BOILER:
-            await self._button_api.async_reset_boiler()
+            success = await self._button_api.async_reset_boiler()
+            if not success:
+                raise ZentralyApiError("Reset failed")
 
     @property
     @override

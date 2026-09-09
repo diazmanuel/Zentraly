@@ -18,10 +18,12 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
+from .actions import translate_action_errors
 from .api import SCAN_INTERVAL
 from .device_classes.climate.api import ZentralyClimateApi
 from .device_classes.climate.capabilities import ClimateCapability
 from .device_classes.types import ClimateOperationMode
+from .exceptions import ZentralyApiError, ZentralyValidationError
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0
@@ -381,6 +383,7 @@ class ZentralyClimate(ClimateEntity):
         self._attr_hvac_action = HVACAction.IDLE
 
     @override
+    @translate_action_errors
     async def async_set_temperature(
         self,
         **kwargs: Any,
@@ -390,17 +393,17 @@ class ZentralyClimate(ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
 
         if not isinstance(temperature, int | float):
-            return
+            raise ZentralyValidationError("Unsupported action value")
 
         if not self._climate_api.supports(ClimateCapability.TARGET_TEMPERATURE):
-            return
+            raise ZentralyValidationError("Unsupported action value")
 
         success = await self._climate_api.async_set_target_temperature(
             float(temperature)
         )
 
         if not success:
-            return
+            raise ZentralyApiError("Action failed")
 
         self._normal_target_temperature = float(temperature)
 
@@ -413,6 +416,7 @@ class ZentralyClimate(ClimateEntity):
         self.async_write_ha_state()
 
     @override
+    @translate_action_errors
     async def async_set_hvac_mode(
         self,
         hvac_mode: HVACMode,
@@ -420,7 +424,7 @@ class ZentralyClimate(ClimateEntity):
         """Set new HVAC mode."""
 
         if not self._climate_api.supports(ClimateCapability.OPERATION_MODE):
-            return
+            raise ZentralyValidationError("Unsupported action value")
 
         if hvac_mode is HVACMode.OFF:
             operation_mode = ClimateOperationMode.OFF
@@ -432,12 +436,12 @@ class ZentralyClimate(ClimateEntity):
             operation_mode = ClimateOperationMode.AUTO
 
         else:
-            return
+            raise ZentralyValidationError("Unsupported action")
 
         success = await self._climate_api.async_set_operation_mode(operation_mode)
 
         if not success:
-            return
+            raise ZentralyApiError("Action failed")
 
         self._apply_operation_mode(operation_mode)
         self._update_target_temperature()
@@ -446,6 +450,7 @@ class ZentralyClimate(ClimateEntity):
         self.async_write_ha_state()
 
     @override
+    @translate_action_errors
     async def async_set_preset_mode(
         self,
         preset_mode: str,
@@ -453,7 +458,7 @@ class ZentralyClimate(ClimateEntity):
         """Set new preset mode."""
 
         if not self._climate_api.supports(ClimateCapability.OPERATION_MODE):
-            return
+            raise ZentralyValidationError("Unsupported action value")
 
         if preset_mode == PRESET_AWAY:
             operation_mode = ClimateOperationMode.AWAY
@@ -462,12 +467,12 @@ class ZentralyClimate(ClimateEntity):
             operation_mode = ClimateOperationMode.MANUAL
 
         else:
-            return
+            raise ZentralyValidationError("Unsupported action")
 
         success = await self._climate_api.async_set_operation_mode(operation_mode)
 
         if not success:
-            return
+            raise ZentralyApiError("Action failed")
 
         self._apply_operation_mode(operation_mode)
         self._update_target_temperature()

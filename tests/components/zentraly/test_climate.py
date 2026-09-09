@@ -1,5 +1,6 @@
 """Tests for Zentraly thermostat modes and setpoints."""
 
+from contextlib import AbstractContextManager, nullcontext
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,6 +14,7 @@ from homeassistant.components.zentraly.device_classes.climate.capabilities impor
     ClimateCapability,
 )
 from homeassistant.components.zentraly.device_classes.types import ClimateOperationMode
+from homeassistant.exceptions import HomeAssistantError
 
 
 @pytest.mark.parametrize(
@@ -38,14 +40,17 @@ async def test_hvac_mode(
 
 
 @pytest.mark.parametrize(
-    ("success", "expected"),
+    ("success", "expected", "expectation"),
     [
-        pytest.param(True, 22.0, id="success"),
-        pytest.param(False, 20.0, id="failure"),
+        pytest.param(True, 22.0, nullcontext(), id="success"),
+        pytest.param(False, 20.0, pytest.raises(HomeAssistantError), id="failure"),
     ],
 )
 async def test_temperature_write(
-    platform_device: MagicMock, success: bool, expected: float
+    platform_device: MagicMock,
+    success: bool,
+    expected: float,
+    expectation: AbstractContextManager,
 ) -> None:
     """A failed setpoint write preserves the last reported temperature."""
     api = MagicMock(spec=ZentralyClimateApi)
@@ -54,7 +59,8 @@ async def test_temperature_write(
     entity = ZentralyClimate(platform_device, climate_api=api)
     with patch.object(entity, "async_write_ha_state"):
         entity._handle_state_update({ClimateCapability.TARGET_TEMPERATURE: 20.0})
-        await entity.async_set_temperature(temperature=22.0)
+        with expectation:
+            await entity.async_set_temperature(temperature=22.0)
     assert entity.target_temperature == expected
     api.async_set_target_temperature.assert_awaited_once_with(22.0)
 
