@@ -60,3 +60,17 @@ async def test_disconnected_action(platform_device: MagicMock) -> None:
     with pytest.raises(HomeAssistantError):
         await entity.async_turn_on()
     api.async_set_power.assert_not_awaited()
+
+
+async def test_missing_power_is_unknown(platform_device: MagicMock) -> None:
+    """An unknown power value does not retain an old on state."""
+    api = MagicMock(spec=ZentralySwitchApi)
+    api.async_get_power.side_effect = [True, None]
+    entity = ZentralySwitch(
+        device=platform_device, switch_api=api, capability=SwitchCapability.POWER
+    )
+    await entity.async_update()
+    assert entity.is_on is True
+    await entity.async_update()
+    assert entity.is_on is None
+    assert entity.available

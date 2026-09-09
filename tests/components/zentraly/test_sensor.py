@@ -4,12 +4,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from homeassistant.components.zentraly import create_device
+from homeassistant.components.zentraly.api import ZentralyApi
 from homeassistant.components.zentraly.device_classes.sensor.api import (
     ZentralySensorApi,
 )
 from homeassistant.components.zentraly.device_classes.sensor.capabilities import (
     SensorCapability,
 )
+from homeassistant.components.zentraly.device_classes.types import ZentralyOutputType
 from homeassistant.components.zentraly.sensor import ZentralySensor
 from homeassistant.const import UnitOfVolumeFlowRate
 
@@ -69,3 +72,62 @@ def test_flow_report(platform_device: MagicMock) -> None:
         entity._handle_state_update({SensorCapability.DHW_FLOW_RATE: "invalid"})
     assert entity.native_value == 8.0
     publish.assert_called_once_with()
+
+
+async def test_opentherm_loss_clears_flow(platform_device: MagicMock) -> None:
+    """An output change immediately clears the previous OpenTherm reading."""
+    api = MagicMock(spec=ZentralySensorApi)
+    api.async_get_dhw_flow_rate.return_value = 7.5
+    entity = ZentralySensor(
+        device=platform_device,
+        sensor_api=api,
+        capability=SensorCapability.DHW_FLOW_RATE,
+    )
+    await entity.async_update()
+    assert entity.native_value == 7.5
+    platform_device.opentherm_connected = False
+    with patch.object(entity, "async_write_ha_state") as publish:
+        entity._handle_device_state()
+    assert entity.native_value is None
+    assert entity.available
+    publish.assert_called_once_with()
+
+
+async def test_output_poll_recovers_unavailable_device() -> None:
+    """Polling continues after a device timeout so it can recover without reports."""
+    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api._set_connected(True)
+    device = create_device(api, "ZTBIN0100000001", "bb")
+    entity = ZentralySensor(
+        device=device,
+        sensor_api=ZentralySensorApi(device),
+        capability=SensorCapability.OUTPUT_TYPE,
+    )
+    with patch.object(api, "async_execute_command", return_value=None):
+        await entity.async_update()
+    assert not entity.available
+    with patch.object(
+        api,
+        "async_execute_command",
+        return_value=(
+            1,
+            {
+                "cmd": "readAttr",
+                "rid": 1,
+                "status": 200,
+                "attrs": [{"id": 1000, "val": 1}],
+            },
+        ),
+    ):
+        await entity.async_update()
+    assert entity.available
+    assert entity.native_value == "opentherm"
+    with patch.object(
+        api,
+        "async_execute_command",
+        return_value=(2, {"cmd": "readAttr", "rid": 2, "status": 200, "attrs": []}),
+    ):
+        await entity.async_update()
+    assert entity.available
+    assert entity.native_value is None
+    assert device.output_type is ZentralyOutputType.OPENTHERM

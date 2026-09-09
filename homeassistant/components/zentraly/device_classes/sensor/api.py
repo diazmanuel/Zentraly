@@ -128,8 +128,6 @@ class ZentralySensorApi:
                 if not isinstance(value, ZentralyOutputType):
                     continue
 
-                self._device.output_type = value
-
             updates[capability] = value
 
         if not updates:
@@ -267,7 +265,7 @@ class ZentralySensorApi:
         if not isinstance(value, ZentralyOutputType):
             return None
 
-        self._device.output_type = value
+        self._device.set_output_type(value)
 
         return value
 

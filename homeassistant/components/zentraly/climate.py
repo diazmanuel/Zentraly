@@ -107,6 +107,8 @@ class ZentralyClimate(ClimateEntity):
 
         await super().async_added_to_hass()
 
+        self.async_on_remove(self._device.add_state_listener(self.async_write_ha_state))
+
         self.async_on_remove(
             self._device.add_connection_state_listener(self._handle_connection_state)
         )
@@ -131,6 +133,12 @@ class ZentralyClimate(ClimateEntity):
 
         await self.async_update()
         self.async_write_ha_state()
+
+    @property
+    @override
+    def available(self) -> bool:
+        """Return availability independently of a missing attribute value."""
+        return self._device.available and self._device.connected
 
     def _handle_connection_state(
         self,
@@ -288,38 +296,32 @@ class ZentralyClimate(ClimateEntity):
         if current_temperature_task is not None:
             current_temperature = current_temperature_task.result()
 
-            if current_temperature is not None:
-                self._attr_current_temperature = current_temperature
+            self._attr_current_temperature = current_temperature
 
         if target_temperature_task is not None:
             target_temperature = target_temperature_task.result()
 
-            if target_temperature is not None:
-                self._normal_target_temperature = target_temperature
+            self._normal_target_temperature = target_temperature
 
         if away_temperature_task is not None:
             away_temperature = away_temperature_task.result()
 
-            if away_temperature is not None:
-                self._away_temperature = away_temperature
+            self._away_temperature = away_temperature
 
         if operation_mode_task is not None:
             operation_mode = operation_mode_task.result()
 
-            if operation_mode is not None:
-                self._apply_operation_mode(operation_mode)
+            self._apply_operation_mode(operation_mode)
 
         if heat_demand_task is not None:
             heat_demand = heat_demand_task.result()
 
-            if heat_demand is not None:
-                self._heat_demand = heat_demand
+            self._heat_demand = heat_demand
 
         if humidity_task is not None:
             humidity = humidity_task.result()
 
-            if humidity is not None:
-                self._attr_current_humidity = humidity
+            self._attr_current_humidity = humidity
 
         self._update_target_temperature()
         self._update_hvac_action()
@@ -331,6 +333,8 @@ class ZentralyClimate(ClimateEntity):
         """Map a Zentraly operation mode to Home Assistant state."""
 
         if mode is None:
+            self._attr_hvac_mode = None
+            self._attr_preset_mode = PRESET_NONE
             return
 
         if mode is ClimateOperationMode.OFF:

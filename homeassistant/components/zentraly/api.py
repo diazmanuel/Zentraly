@@ -71,6 +71,7 @@ class ZentralyApi:
         self._connection.add_report_listener(self._handle_report)
 
         self._connected = False
+        self._connection_outage = False
         self._connection_state_listeners: set[ConnectionStateListener] = set()
         self._authentication_error_listeners: set[Callable[[], None]] = set()
         self._report_listeners: dict[str, set[ReportListener]] = {}
@@ -218,6 +219,15 @@ class ZentralyApi:
 
         self._connected = connected
 
+        if connected and self._connection_outage:
+            self._connection_outage = False
+            _LOGGER.info(
+                "Zentraly gateway connection restored: device_id=%s mac=%s ip=%s",
+                self._device_id,
+                self._mac,
+                self._host,
+            )
+
         for listener in tuple(self._connection_state_listeners):
             listener(connected)
 
@@ -329,7 +339,7 @@ class ZentralyApi:
         rid, response = await self._connection.async_send_command(build_command)
 
         if response is None:
-            _LOGGER.error(
+            _LOGGER.debug(
                 "No response received from Zentraly device command: "
                 "device_id=%s mac=%s ip=%s rid=%s command=%s",
                 self._device_id,
@@ -468,18 +478,22 @@ class ZentralyApi:
 
         self._set_connected(False)
 
+        self._log_connection_outage(reason)
+
+        self._connection_lost_event.set()
+
+    def _log_connection_outage(self, reason: str) -> None:
+        """Log a gateway outage only once until it recovers."""
+        if self._connection_outage or self._stop_requested:
+            return
+        self._connection_outage = True
         _LOGGER.warning(
-            "Zentraly WebSocket connection lost: "
-            "device_id=%s mac=%s ip=%s "
-            "(keepalives without response: %s): %s",
+            "Zentraly gateway unavailable: device_id=%s mac=%s ip=%s: %s",
             self._device_id,
             self._mac,
             self._host,
-            self._keepalive_failures,
             reason,
         )
-
-        self._connection_lost_event.set()
 
     def _handle_keepalive_failure(self) -> None:
         """Handle a failed keepalive request."""
@@ -571,7 +585,7 @@ class ZentralyApi:
 
         self._keepalive_task = asyncio.create_task(self._async_keepalive_loop())
 
-        _LOGGER.info(
+        _LOGGER.debug(
             "Zentraly WebSocket connected: device_id=%s mac=%s ip=%s",
             self._device_id,
             self._mac,
@@ -609,7 +623,8 @@ class ZentralyApi:
                     return
 
                 if not connected:
-                    _LOGGER.warning(
+                    self._log_connection_outage("Connection attempts exhausted")
+                    _LOGGER.debug(
                         "Zentraly device unavailable after %s connection attempts: "
                         "device_id=%s mac=%s ip=%s. Retrying in %s minutes",
                         CONNECTION_ATTEMPTS,

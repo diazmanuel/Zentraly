@@ -84,3 +84,36 @@ def test_away_report(platform_device: MagicMock) -> None:
     assert entity.target_temperature == 15.0
     assert entity.preset_mode == PRESET_AWAY
     assert entity.hvac_action == HVACAction.HEATING
+
+
+async def test_missing_readings_clear_previous_values(
+    platform_device: MagicMock,
+) -> None:
+    """Unknown readings do not retain stale temperatures or imply an outage."""
+    api = MagicMock(spec=ZentralyClimateApi)
+    api.supports.return_value = True
+    api.async_get_current_temperature.return_value = None
+    api.async_get_target_temperature.return_value = None
+    api.async_get_away_temperature.return_value = None
+    api.async_get_operation_mode.return_value = None
+    api.async_get_heat_demand.return_value = None
+    api.async_get_humidity.return_value = None
+    entity = ZentralyClimate(platform_device, climate_api=api)
+    with patch.object(entity, "async_write_ha_state"):
+        entity._handle_state_update(
+            {
+                ClimateCapability.LOCAL_TEMPERATURE: 19.0,
+                ClimateCapability.TARGET_TEMPERATURE: 22.0,
+                ClimateCapability.AWAY_TEMPERATURE: 15.0,
+                ClimateCapability.OPERATION_MODE: ClimateOperationMode.AWAY,
+                ClimateCapability.HEAT_DEMAND: True,
+                ClimateCapability.HUMIDITY: 50.0,
+            }
+        )
+    await entity.async_update()
+    assert entity.available
+    assert entity.current_temperature is None
+    assert entity.target_temperature is None
+    assert entity.current_humidity is None
+    assert entity.hvac_mode is None
+    assert entity.hvac_action is None

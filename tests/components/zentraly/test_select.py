@@ -63,3 +63,20 @@ async def test_disconnected_select(platform_device: MagicMock) -> None:
     with pytest.raises(HomeAssistantError):
         await entity.async_select_option("auto")
     api.async_set_operation_mode.assert_not_awaited()
+
+
+async def test_missing_mode_is_unknown(platform_device: MagicMock) -> None:
+    """A missing mode clears the old selection without marking the device offline."""
+    api = MagicMock(spec=ZentralySelectApi)
+    api.get_options.return_value = [SelectOperationMode.MANUAL]
+    api.async_get_operation_mode.side_effect = [SelectOperationMode.MANUAL, None]
+    entity = ZentralySelect(
+        device=platform_device,
+        select_api=api,
+        capability=SelectCapability.OPERATION_MODE,
+    )
+    await entity.async_update()
+    assert entity.current_option == "manual"
+    await entity.async_update()
+    assert entity.current_option is None
+    assert entity.available
