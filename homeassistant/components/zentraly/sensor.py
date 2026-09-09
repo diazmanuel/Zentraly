@@ -14,6 +14,7 @@ from homeassistant.const import (
     UnitOfPower,
     UnitOfPressure,
     UnitOfTemperature,
+    UnitOfVolumeFlowRate,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -185,7 +186,9 @@ class ZentralySensor(SensorEntity):
             self._attr_native_unit_of_measurement = UnitOfPressure.BAR
 
         elif capability is SensorCapability.DHW_FLOW_RATE:
-            self._attr_native_unit_of_measurement = "L/min"
+            self._attr_native_unit_of_measurement = (
+                UnitOfVolumeFlowRate.LITERS_PER_MINUTE
+            )
 
     @override
     async def async_added_to_hass(self) -> None:
