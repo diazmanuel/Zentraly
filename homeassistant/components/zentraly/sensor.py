@@ -26,6 +26,8 @@ from .device_classes.sensor.capabilities import SensorCapability
 from .device_classes.types import ZentralyOutputType
 from .models import ZentralyConfigEntry, ZentralyDevice
 
+PARALLEL_UPDATES = 0
+
 _OPENTHERM_CAPABILITIES = frozenset(
     {
         SensorCapability.ERROR_ID,

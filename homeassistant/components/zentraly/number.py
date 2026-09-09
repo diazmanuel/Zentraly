@@ -20,6 +20,8 @@ from .device_classes.number.api import ZentralyNumberApi
 from .device_classes.number.capabilities import NumberCapability
 from .models import ZentralyConfigEntry, ZentralyDevice
 
+PARALLEL_UPDATES = 0
+
 _TIMER_DEBOUNCE_SECONDS = 3.0
 
 _CONFIG_CAPABILITIES = frozenset(

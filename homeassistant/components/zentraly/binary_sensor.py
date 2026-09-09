@@ -15,6 +15,8 @@ from .device_classes.binary_sensor.api import ZentralyBinarySensorApi
 from .device_classes.binary_sensor.capabilities import BinarySensorCapability
 from .models import ZentralyConfigEntry, ZentralyDevice
 
+PARALLEL_UPDATES = 0
+
 _OPENTHERM_CAPABILITIES = frozenset(
     {
         BinarySensorCapability.OT_HEATING_WATER_ACTIVE,

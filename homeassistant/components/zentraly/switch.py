@@ -15,6 +15,8 @@ from .device_classes.switch.api import ZentralySwitchApi
 from .device_classes.switch.capabilities import SwitchCapability
 from .models import ZentralyConfigEntry, ZentralyDevice
 
+PARALLEL_UPDATES = 0
+
 _OPENTHERM_CAPABILITIES = frozenset(
     {
         SwitchCapability.COMFORT_MODE,
