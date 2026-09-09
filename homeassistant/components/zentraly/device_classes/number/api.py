@@ -4,11 +4,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
-from ..select.capabilities import SelectCapability
-from ..select.command_protocols import OperationModeCommands
-from ..switch.capabilities import SwitchCapability
-from ..switch.command_protocols import PowerCommands
-from ..types import SelectOperationMode
 from .capabilities import NumberCapability
 from .command_protocols import (
     HighPowerLimitCommands,
@@ -254,91 +249,15 @@ class ZentralyNumberApi:
         self,
         value: float,
     ) -> bool:
-        """Set the timer and automatically enter timer mode."""
+        """Set the timer using the model-specific operation."""
 
         if not self.supports(NumberCapability.TIMER):
             raise ZentralyValidationError("Unsupported action")
 
-        if not self._device.supports(SwitchCapability.POWER):
-            raise ZentralyValidationError("Unsupported action")
-
-        if not self._device.supports(SelectCapability.OPERATION_MODE):
-            raise ZentralyValidationError("Unsupported action")
-
-        power_commands = cast(
-            PowerCommands,
-            self._device.commands,
+        commands = cast(TimerCommands, self._device.commands)
+        await commands.async_set_timer(
+            self._device.mac, value, self._device.async_execute_action_command
         )
-
-        timer_commands = cast(
-            TimerCommands,
-            self._device.commands,
-        )
-
-        operation_mode_commands = cast(
-            OperationModeCommands,
-            self._device.commands,
-        )
-
-        power_result = await self._device.async_execute_action_command(
-            lambda rid: power_commands.build_read_power_state(
-                rid,
-                self._device.mac,
-            )
-        )
-
-        power_rid, power_response = power_result
-
-        try:
-            power_on = power_commands.parse_power_state_response(
-                power_response,
-                power_rid,
-            )
-
-        except (TypeError, ValueError) as err:
-            raise ZentralyInvalidResponseError("Invalid action response") from err
-
-        if not isinstance(power_on, bool):
-            raise ZentralyInvalidResponseError("Invalid power state")
-
-        timer_result = await self._device.async_execute_action_command(
-            lambda rid: timer_commands.build_write_timer(
-                rid,
-                self._device.mac,
-                value,
-                power_on,
-            )
-        )
-
-        timer_rid, timer_response = timer_result
-
-        try:
-            timer_commands.parse_write_timer_response(
-                timer_response,
-                timer_rid,
-            )
-
-        except (TypeError, ValueError) as err:
-            raise ZentralyInvalidResponseError("Invalid action response") from err
-
-        mode_result = await self._device.async_execute_action_command(
-            lambda rid: operation_mode_commands.build_write_operation_mode(
-                rid,
-                self._device.mac,
-                SelectOperationMode.TIMER,
-            )
-        )
-
-        mode_rid, mode_response = mode_result
-
-        try:
-            operation_mode_commands.parse_write_operation_mode_response(
-                mode_response,
-                mode_rid,
-            )
-
-        except (TypeError, ValueError) as err:
-            raise ZentralyInvalidResponseError("Invalid action response") from err
 
         return True
 

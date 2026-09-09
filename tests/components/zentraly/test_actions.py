@@ -9,6 +9,10 @@ import pytest
 from homeassistant.components.zentraly import create_device
 from homeassistant.components.zentraly.actions import translate_action_errors
 from homeassistant.components.zentraly.api import ZentralyApi
+from homeassistant.components.zentraly.commands.base import (
+    ActionCommandExecutor,
+    ZentralyDeviceCommands,
+)
 from homeassistant.components.zentraly.device_classes.button.api import (
     ZentralyButtonApi,
 )
@@ -17,6 +21,9 @@ from homeassistant.components.zentraly.device_classes.climate.api import (
 )
 from homeassistant.components.zentraly.device_classes.number.api import (
     ZentralyNumberApi,
+)
+from homeassistant.components.zentraly.device_classes.number.capabilities import (
+    NumberCapability,
 )
 from homeassistant.components.zentraly.device_classes.select.api import (
     ZentralySelectApi,
@@ -231,3 +238,131 @@ async def test_timer_sequence_failure(stage: int) -> None:
     with pytest.raises(ZentralyInvalidResponseError):
         await ZentralyNumberApi(device).async_set_timer(30)
     assert api.async_execute_command.await_count == stage + 1
+
+
+@pytest.mark.parametrize(
+    ("power_on", "raw_timer"),
+    [pytest.param(True, 1800, id="on"), pytest.param(False, 1801, id="off")],
+)
+async def test_zteim_timer_wire_sequence(power_on: bool, raw_timer: int) -> None:
+    """The extracted operation preserves command order and the power-state bit."""
+    api = MagicMock(spec=ZentralyApi)
+    device = create_device(api, "ZTEIM0100000001", "aabbccddeeff")
+    commands: list[dict[str, Any]] = []
+    responses = [
+        {
+            "cmd": "readAttr",
+            "rid": 1,
+            "status": 200,
+            "attrs": [{"id": 0, "val": int(power_on)}],
+        },
+        {"cmd": "writeAttr", "rid": 2, "status": 200},
+        {"cmd": "writeAttr", "rid": 3, "status": 200},
+    ]
+
+    async def execute(
+        builder: Callable[[int], dict[str, Any]],
+    ) -> tuple[int, dict[str, Any]]:
+        rid = len(commands) + 1
+        commands.append(builder(rid))
+        return rid, responses[rid - 1]
+
+    api.async_execute_command.side_effect = execute
+    assert await ZentralyNumberApi(device).async_set_timer(30)
+    assert [command["cmd"] for command in commands] == [
+        "readAttr",
+        "writeAttr",
+        "writeAttr",
+    ]
+    assert [command["rid"] for command in commands] == [1, 2, 3]
+    assert [command["mac"] for command in commands] == [device.mac] * 3
+    assert commands[1]["attrs"][0]["val"] == raw_timer
+    assert commands[2]["attrs"][0]["val"] == 9
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        pytest.param(0, id="power"),
+        pytest.param(1, id="timer"),
+        pytest.param(2, id="mode"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("response", "error"),
+    [
+        pytest.param(None, ZentralyConnectionError, id="timeout"),
+        pytest.param(
+            (1, {"status": 400}), ZentralyCommandRejectedError, id="rejection"
+        ),
+    ],
+)
+async def test_timer_stops_after_failed_command(
+    stage: int, response: tuple[int, dict] | None, error: type[ZentralyApiError]
+) -> None:
+    """A transport failure or rejection stops later steps without replay."""
+    responses = [
+        (
+            1,
+            {
+                "cmd": "readAttr",
+                "rid": 1,
+                "status": 200,
+                "attrs": [{"id": 0, "val": 1}],
+            },
+        ),
+        (2, {"cmd": "writeAttr", "rid": 2, "status": 200}),
+        (3, {"cmd": "writeAttr", "rid": 3, "status": 200}),
+    ]
+    api = MagicMock(spec=ZentralyApi)
+    api.async_execute_command.side_effect = [*responses[:stage], response]
+    device = create_device(api, "ZTEIM0100000001", "aabbccddeeff")
+    with pytest.raises(error):
+        await ZentralyNumberApi(device).async_set_timer(30)
+    assert api.async_execute_command.await_count == stage + 1
+
+
+class SimpleTimerCommands(ZentralyDeviceCommands):
+    """Test model with a timer and no power or operation-mode capability."""
+
+    capabilities = frozenset({NumberCapability.TIMER})
+
+    def build_read_timer(self, rid: int, mac: str) -> dict[str, Any]:
+        """Build this model's timer query."""
+        return {"cmd": "readAttr", "rid": rid, "mac": mac}
+
+    def parse_timer_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> float:
+        """Read this model's timer value."""
+        return float(response["minutes"])
+
+    async def async_set_timer(
+        self, mac: str, value: float, execute: ActionCommandExecutor
+    ) -> None:
+        """Set a timer with a single model-specific command."""
+        await execute(
+            lambda rid: {"cmd": "zclCmd", "rid": rid, "mac": mac, "minutes": value}
+        )
+
+
+async def test_timer_without_power_or_mode_capabilities() -> None:
+    """Adding a timer model requires no changes to the generic number API."""
+    api = MagicMock(spec=ZentralyApi)
+    device = create_device(api, "ZTEIM0100000001", "aabbccddeeff")
+    device.commands = SimpleTimerCommands()
+
+    async def execute(
+        builder: Callable[[int], dict[str, Any]],
+    ) -> tuple[int, dict[str, Any]]:
+        assert builder(1) == {
+            "cmd": "zclCmd",
+            "rid": 1,
+            "mac": device.mac,
+            "minutes": 30,
+        }
+        return 1, {"cmd": "zclCmd", "rid": 1, "status": 200}
+
+    api.async_execute_command.side_effect = execute
+    assert await ZentralyNumberApi(device).async_set_timer(30)
+    api.async_execute_command.assert_awaited_once()

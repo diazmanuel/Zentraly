@@ -1,6 +1,11 @@
 """Base commands for Zentraly devices."""
 
+from collections.abc import Awaitable, Callable
 from typing import Any
+
+type ActionCommandExecutor = Callable[
+    [Callable[[int], dict[str, Any]]], Awaitable[tuple[int, dict[str, Any]]]
+]
 
 
 class ZentralyDeviceCommands:
