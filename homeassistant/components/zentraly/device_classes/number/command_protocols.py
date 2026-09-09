@@ -1,8 +1,20 @@
 """Command capability protocols for Zentraly number devices."""
 
+from collections.abc import Mapping
 from typing import Any, Protocol
 
 from ...commands.base import ActionCommandExecutor
+from .capabilities import NumberCapability
+
+type NumberRange = tuple[float, float, float]
+
+
+class NumberRangeCommands(Protocol):
+    """Model ranges required by supported number capabilities."""
+
+    @property
+    def number_ranges(self) -> Mapping[NumberCapability, NumberRange]:
+        """Return the supported ranges without exposing mutations to callers."""
 
 
 class TimerCommands(Protocol):

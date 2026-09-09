@@ -6,17 +6,66 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
+from homeassistant.components.zentraly import create_device
+from homeassistant.components.zentraly.api import ZentralyApi
 from homeassistant.components.zentraly.device_classes.number.api import (
     ZentralyNumberApi,
 )
 from homeassistant.components.zentraly.device_classes.number.capabilities import (
     NumberCapability,
 )
+from homeassistant.components.zentraly.devices.zteim import ZteimCommands
 from homeassistant.components.zentraly.exceptions import ZentralyConnectionError
 from homeassistant.components.zentraly.models import ZentralyDevice
 from homeassistant.components.zentraly.number import ZentralyNumber
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
+
+
+@pytest.mark.parametrize(
+    ("capability", "expected"),
+    [
+        pytest.param(NumberCapability.TIMER, (1.0, 1440.0, 1.0), id="timer"),
+        pytest.param(
+            NumberCapability.HIGH_VOLTAGE_LIMIT, (245.0, 265.0, 5.0), id="high-voltage"
+        ),
+        pytest.param(
+            NumberCapability.LOW_VOLTAGE_LIMIT, (150.0, 190.0, 5.0), id="low-voltage"
+        ),
+        pytest.param(
+            NumberCapability.HIGH_POWER_LIMIT, (200.0, 2200.0, 50.0), id="power"
+        ),
+    ],
+)
+def test_model_number_range(
+    capability: NumberCapability, expected: tuple[float, float, float]
+) -> None:
+    """The typed metadata contract preserves current number limits."""
+    device = create_device(MagicMock(spec=ZentralyApi), "ZTEIM0100000001", "aa")
+    assert ZentralyNumberApi(device).get_range(capability) == expected
+
+
+class CompactTimerCommands(ZteimCommands):
+    """A timer variant declaring only its supported capability and range."""
+
+    capabilities = frozenset({NumberCapability.TIMER})
+    number_ranges = {NumberCapability.TIMER: (1, 60, 1)}
+
+
+def test_number_range_from_another_model() -> None:
+    """A model declaration changes the entity range without API changes."""
+    device = create_device(MagicMock(spec=ZentralyApi), "ZTEIM0100000001", "aa")
+    device.commands = CompactTimerCommands()
+    api = ZentralyNumberApi(device)
+    entity = ZentralyNumber(
+        device=device, number_api=api, capability=NumberCapability.TIMER
+    )
+    assert (entity.native_min_value, entity.native_max_value, entity.native_step) == (
+        1,
+        60,
+        1,
+    )
+    assert api.get_range(NumberCapability.HIGH_POWER_LIMIT) is None
 
 
 @pytest.fixture

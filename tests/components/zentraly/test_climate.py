@@ -14,6 +14,7 @@ from homeassistant.components.zentraly.device_classes.climate.capabilities impor
     ClimateCapability,
 )
 from homeassistant.components.zentraly.device_classes.types import ClimateOperationMode
+from homeassistant.components.zentraly.devices.zttin import ZttinCommands
 from homeassistant.exceptions import HomeAssistantError
 
 
@@ -30,6 +31,7 @@ async def test_hvac_mode(
 ) -> None:
     """Translate Home Assistant modes into device operations."""
     api = MagicMock(spec=ZentralyClimateApi)
+    api.configuration = ZttinCommands.climate_configuration
     api.supports.return_value = True
     api.async_set_operation_mode.return_value = True
     entity = ZentralyClimate(platform_device, climate_api=api)
@@ -54,6 +56,7 @@ async def test_temperature_write(
 ) -> None:
     """A failed setpoint write preserves the last reported temperature."""
     api = MagicMock(spec=ZentralyClimateApi)
+    api.configuration = ZttinCommands.climate_configuration
     api.supports.return_value = True
     api.async_set_target_temperature.return_value = success
     entity = ZentralyClimate(platform_device, climate_api=api)
@@ -68,6 +71,7 @@ async def test_temperature_write(
 def test_away_report(platform_device: MagicMock) -> None:
     """Away mode displays its setpoint and preserves the reported heat demand."""
     api = MagicMock(spec=ZentralyClimateApi)
+    api.configuration = ZttinCommands.climate_configuration
     api.supports.return_value = True
     entity = ZentralyClimate(platform_device, climate_api=api)
     with patch.object(entity, "async_write_ha_state"):
@@ -91,6 +95,7 @@ async def test_missing_readings_clear_previous_values(
 ) -> None:
     """Unknown readings do not retain stale temperatures or imply an outage."""
     api = MagicMock(spec=ZentralyClimateApi)
+    api.configuration = ZttinCommands.climate_configuration
     api.supports.return_value = True
     api.async_get_current_temperature.return_value = None
     api.async_get_target_temperature.return_value = None
