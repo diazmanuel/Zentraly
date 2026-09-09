@@ -3,7 +3,7 @@
 from enum import IntEnum
 from typing import Any, override
 
-from ..commands.base import ZentralyDeviceCommands
+from ..commands.base import ActionCommandExecutor, ZentralyDeviceCommands
 from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.button.capabilities import ButtonCapability
@@ -12,6 +12,7 @@ from ..device_classes.select.capabilities import SelectCapability
 from ..device_classes.sensor.capabilities import SensorCapability
 from ..device_classes.switch.capabilities import SwitchCapability
 from ..device_classes.types import SelectOperationMode
+from ..exceptions import ZentralyInvalidResponseError
 
 
 class ZteimOperationMode(IntEnum):
@@ -956,6 +957,71 @@ class ZteimCommands(ZentralyDeviceCommands):
         duration_seconds = raw_value & ~1
 
         return float(duration_seconds // 60)
+
+    async def async_set_timer(
+        self, mac: str, value: float, execute: ActionCommandExecutor
+    ) -> None:
+        """Preserve power state when writing the timer, then activate timer mode."""
+
+        power_result = await execute(
+            lambda rid: self.build_read_power_state(
+                rid,
+                mac,
+            )
+        )
+
+        power_rid, power_response = power_result
+
+        try:
+            power_on = self.parse_power_state_response(
+                power_response,
+                power_rid,
+            )
+
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
+
+        if not isinstance(power_on, bool):
+            raise ZentralyInvalidResponseError("Invalid power state")
+
+        timer_result = await execute(
+            lambda rid: self.build_write_timer(
+                rid,
+                mac,
+                value,
+                power_on,
+            )
+        )
+
+        timer_rid, timer_response = timer_result
+
+        try:
+            self.parse_write_timer_response(
+                timer_response,
+                timer_rid,
+            )
+
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
+
+        mode_result = await execute(
+            lambda rid: self.build_write_operation_mode(
+                rid,
+                mac,
+                SelectOperationMode.TIMER,
+            )
+        )
+
+        mode_rid, mode_response = mode_result
+
+        try:
+            self.parse_write_operation_mode_response(
+                mode_response,
+                mode_rid,
+            )
+
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
 
     def build_write_timer(
         self,

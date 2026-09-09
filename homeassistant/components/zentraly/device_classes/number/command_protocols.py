@@ -2,6 +2,8 @@
 
 from typing import Any, Protocol
 
+from ...commands.base import ActionCommandExecutor
+
 
 class TimerCommands(Protocol):
     """Commands for devices supporting a timer."""
@@ -20,21 +22,13 @@ class TimerCommands(Protocol):
     ) -> float:
         """Parse the timer duration response."""
 
-    def build_write_timer(
+    async def async_set_timer(
         self,
-        rid: int,
         mac: str,
         value: float,
-        power_on: bool,
-    ) -> dict[str, Any]:
-        """Build the timer write command."""
-
-    def parse_write_timer_response(
-        self,
-        response: dict[str, Any],
-        expected_rid: int,
+        execute: ActionCommandExecutor,
     ) -> None:
-        """Parse the timer write response."""
+        """Execute the model's timer operation, raising on failure."""
 
 
 class HighVoltageLimitCommands(Protocol):
