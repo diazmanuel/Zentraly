@@ -7,9 +7,11 @@ from datetime import timedelta
 import logging
 from typing import Any
 
+from homeassistant.helpers.redact import async_redact_data
+
 from .commands.base import ZentralyDeviceCommands
 from .commands.common import ZentralyCommonCommands
-from .connection import ZentralyConnection, ZentralyTransportError
+from .connection import TO_REDACT, ZentralyConnection, ZentralyTransportError
 from .devices import get_device_commands
 from .devices.device import DeviceModel, get_device_model
 
@@ -333,7 +335,7 @@ class ZentralyApi:
                 self._mac,
                 self._host,
                 rid,
-                command,
+                async_redact_data(command, TO_REDACT),
             )
             return None
 

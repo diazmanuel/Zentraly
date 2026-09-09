@@ -9,10 +9,13 @@ from typing import Any
 
 import aiohttp
 
+from homeassistant.helpers.redact import async_redact_data
+
 _LOGGER = logging.getLogger(__name__)
 
 COMMAND_TIMEOUT = 30
 MAX_RID = 0xFFFF
+TO_REDACT = {"key", "password"}
 
 type ZentralyMessage = dict[str, Any]
 type CommandBuilder = Callable[[int], ZentralyMessage]
@@ -281,7 +284,7 @@ class ZentralyConnection:
 
                 _LOGGER.debug(
                     "Zentraly WebSocket TX: %s",
-                    command,
+                    async_redact_data(command, TO_REDACT),
                 )
 
                 await websocket.send_json(command)
@@ -304,11 +307,6 @@ class ZentralyConnection:
         try:
             async for message in websocket:
                 if message.type == aiohttp.WSMsgType.TEXT:
-                    _LOGGER.debug(
-                        "Zentraly WebSocket RX: %s",
-                        message.data,
-                    )
-
                     self._handle_text_message(message.data)
                     continue
 
@@ -347,6 +345,11 @@ class ZentralyConnection:
 
         if not isinstance(response, dict):
             return
+
+        _LOGGER.debug(
+            "Zentraly WebSocket RX: %s",
+            async_redact_data(response, TO_REDACT),
+        )
 
         response_command = response.get("cmd")
 
