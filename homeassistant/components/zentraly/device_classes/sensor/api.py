@@ -351,7 +351,7 @@ class ZentralySensorApi:
 
     async def async_get_ch_setpoint(
         self,
-    ) -> int | None:
+    ) -> float | None:
         """Return the OpenTherm central heating setpoint."""
 
         commands = cast(
@@ -359,7 +359,7 @@ class ZentralySensorApi:
             self._device.commands,
         )
 
-        return await self._async_get_integer_value(
+        return await self._async_get_float_value(
             capability=SensorCapability.CH_SETPOINT,
             builder=commands.build_read_ch_setpoint,
             parser=commands.parse_ch_setpoint_response,
@@ -447,7 +447,7 @@ class ZentralySensorApi:
 
     async def async_get_dhw_setpoint(
         self,
-    ) -> int | None:
+    ) -> float | None:
         """Return the OpenTherm domestic hot water setpoint."""
 
         commands = cast(
@@ -455,7 +455,7 @@ class ZentralySensorApi:
             self._device.commands,
         )
 
-        return await self._async_get_integer_value(
+        return await self._async_get_float_value(
             capability=SensorCapability.DHW_SETPOINT,
             builder=commands.build_read_dhw_setpoint,
             parser=commands.parse_dhw_setpoint_response,

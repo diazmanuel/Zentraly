@@ -476,10 +476,7 @@ class ZteimCommands(ZentralyDeviceCommands):
         if attribute_id == self.POWER_STATE_ATTRIBUTE_ID:
             return (
                 SwitchCapability.POWER,
-                self._parse_binary_value(
-                    value,
-                    "power state",
-                ),
+                ZentralyCommonCommands.parse_on_off_level(value),
             )
 
         if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
@@ -714,12 +711,13 @@ class ZteimCommands(ZentralyDeviceCommands):
     ) -> bool:
         """Parse the main power state."""
 
-        return self._parse_read_binary_response(
+        raw_value = self._parse_read_integer_response(
             response,
             expected_rid,
             self.POWER_STATE_ATTRIBUTE_ID,
-            "power state",
         )
+
+        return ZentralyCommonCommands.parse_on_off_level(raw_value)
 
     def build_write_power_state(
         self,

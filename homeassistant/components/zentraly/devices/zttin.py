@@ -355,10 +355,7 @@ class ZttinCommands(ZentralyDeviceCommands):
         ):
             return (
                 ClimateCapability.HEAT_DEMAND,
-                self._parse_binary_value(
-                    value,
-                    "heat demand",
-                ),
+                ZentralyCommonCommands.parse_on_off_level(value),
             )
 
         return None
@@ -966,10 +963,9 @@ class ZttinCommands(ZentralyDeviceCommands):
             expected_rid,
         )
 
-        return self._parse_binary_value(
+        return ZentralyCommonCommands.parse_on_off_level(
             self._parse_attribute_value(
                 attrs,
                 self.HEAT_DEMAND_ATTRIBUTE_ID,
             ),
-            "heat demand",
         )
