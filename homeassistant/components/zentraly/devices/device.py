@@ -23,6 +23,7 @@ class DeviceDefinition(TypedDict):
     """Definition of a supported Zentraly device."""
 
     model: DeviceModel
+    commercial_name: str
     platforms: frozenset[Platform]
     supports_zeroconf: bool
     allowed_child_models: frozenset[DeviceModel]
@@ -32,6 +33,7 @@ class DeviceDefinition(TypedDict):
 DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     "ZTTIN": {
         "model": DeviceModel.ZTTIN,
+        "commercial_name": "Termostato Inalámbrico Wi-Fi",
         "platforms": frozenset(
             {
                 Platform.BUTTON,
@@ -49,6 +51,7 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     },
     "ZTBIN": {
         "model": DeviceModel.ZTBIN,
+        "commercial_name": "Boiler Inalámbrico",
         "platforms": frozenset(
             {
                 Platform.BINARY_SENSOR,
@@ -63,6 +66,7 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     },
     "ZTTWZ": {
         "model": DeviceModel.ZTTWZ,
+        "commercial_name": "Termostato Wi-Fi Zentraly Home",
         "platforms": frozenset(
             {
                 Platform.BINARY_SENSOR,
@@ -78,6 +82,7 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     },
     "ZTREA": {
         "model": DeviceModel.ZTREA,
+        "commercial_name": "Radiador electrico",
         "platforms": frozenset(
             {
                 Platform.BUTTON,
@@ -92,6 +97,7 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     },
     "ZTEIM": {
         "model": DeviceModel.ZTEIM,
+        "commercial_name": "Enchufe zentraly mini",
         "platforms": frozenset(
             {
                 Platform.BUTTON,
@@ -107,6 +113,7 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     },
     "ZTIKD": {
         "model": DeviceModel.ZTIKD,
+        "commercial_name": "Smart Switch Kinetic dual Wi-Fi",
         "platforms": frozenset(
             {
                 Platform.BUTTON,
@@ -122,6 +129,7 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     },
     "ZTIKS": {
         "model": DeviceModel.ZTIKS,
+        "commercial_name": "Smart Switch Kinetic Simple Wi-Fi",
         "platforms": frozenset(
             {
                 Platform.BUTTON,
