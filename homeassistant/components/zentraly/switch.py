@@ -37,6 +37,7 @@ _CONFIG_CAPABILITIES = frozenset(
         SwitchCapability.COMFORT_MODE,
         SwitchCapability.FORCED_MODE,
         SwitchCapability.RETURN_TO_CRONO,
+        SwitchCapability.TIMER_OFF_ENABLE,
         SwitchCapability.HIGH_VOLTAGE_PROTECTION,
         SwitchCapability.LOW_VOLTAGE_PROTECTION,
         SwitchCapability.HIGH_POWER_PROTECTION,
@@ -49,17 +50,21 @@ def _create_switch_entities(
 ) -> list[ZentralySwitch]:
     """Create switch entities supported by a Zentraly device."""
 
-    switch_api = ZentralySwitchApi(device)
-
-    return [
-        ZentralySwitch(
-            device=device,
-            switch_api=switch_api,
-            capability=capability,
+    entities: list[ZentralySwitch] = []
+    endpoints = device.commands.channel_endpoints
+    for endpoint in endpoints:
+        switch_api = ZentralySwitchApi(device, endpoint=endpoint)
+        entities.extend(
+            ZentralySwitch(
+                device=device,
+                switch_api=switch_api,
+                capability=capability,
+                channel=endpoint if len(endpoints) > 1 else None,
+            )
+            for capability in SwitchCapability
+            if switch_api.supports(capability)
         )
-        for capability in SwitchCapability
-        if switch_api.supports(capability)
-    ]
+    return entities
 
 
 async def async_setup_entry(
@@ -106,6 +111,7 @@ class ZentralySwitch(SwitchEntity):
         device: ZentralyDevice,
         switch_api: ZentralySwitchApi,
         capability: SwitchCapability,
+        channel: int | None = None,
     ) -> None:
         """Initialize the Zentraly switch."""
 
@@ -115,6 +121,10 @@ class ZentralySwitch(SwitchEntity):
 
         self._attr_unique_id = f"{device.device_id}_{capability.value}"
         self._attr_translation_key = capability.value
+        if channel is not None:
+            self._attr_unique_id += f"_channel_{channel}"
+            self._attr_translation_key += "_channel"
+            self._attr_translation_placeholders = {"channel": str(channel)}
 
         if capability in _CONFIG_CAPABILITIES:
             self._attr_entity_category = EntityCategory.CONFIG
@@ -247,6 +257,9 @@ class ZentralySwitch(SwitchEntity):
         elif self._capability is SwitchCapability.FORCED_MODE:
             value = await self._switch_api.async_get_forced_mode()
 
+        elif self._capability is SwitchCapability.TIMER_OFF_ENABLE:
+            value = await self._switch_api.async_get_timer_off_enable()
+
         elif self._capability is SwitchCapability.RETURN_TO_CRONO:
             value = await self._switch_api.async_get_return_to_crono()
 
@@ -324,6 +337,9 @@ class ZentralySwitch(SwitchEntity):
 
         if self._capability is SwitchCapability.FORCED_MODE:
             return await self._switch_api.async_set_forced_mode(enabled)
+
+        if self._capability is SwitchCapability.TIMER_OFF_ENABLE:
+            return await self._switch_api.async_set_timer_off_enable(enabled)
 
         if self._capability is SwitchCapability.RETURN_TO_CRONO:
             return await self._switch_api.async_set_return_to_crono(enabled)

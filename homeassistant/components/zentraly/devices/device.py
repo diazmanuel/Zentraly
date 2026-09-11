@@ -14,6 +14,8 @@ class DeviceModel(Enum):
     ZTTWZ = "zttwz"
     ZTREA = "ztrea"
     ZTEIM = "zteim"
+    ZTIKD = "ztikd"
+    ZTIKS = "ztiks"
     UNKNOWN = "unknown"
 
 
@@ -90,6 +92,36 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
     },
     "ZTEIM": {
         "model": DeviceModel.ZTEIM,
+        "platforms": frozenset(
+            {
+                Platform.BUTTON,
+                Platform.NUMBER,
+                Platform.SELECT,
+                Platform.SENSOR,
+                Platform.SWITCH,
+            }
+        ),
+        "supports_zeroconf": True,
+        "allowed_child_models": frozenset(),
+        "max_children": 0,
+    },
+    "ZTIKD": {
+        "model": DeviceModel.ZTIKD,
+        "platforms": frozenset(
+            {
+                Platform.BUTTON,
+                Platform.NUMBER,
+                Platform.SELECT,
+                Platform.SENSOR,
+                Platform.SWITCH,
+            }
+        ),
+        "supports_zeroconf": True,
+        "allowed_child_models": frozenset(),
+        "max_children": 0,
+    },
+    "ZTIKS": {
+        "model": DeviceModel.ZTIKS,
         "platforms": frozenset(
             {
                 Platform.BUTTON,

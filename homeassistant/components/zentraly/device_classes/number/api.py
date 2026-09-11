@@ -12,6 +12,7 @@ from .command_protocols import (
     NumberRange,
     NumberRangeCommands,
     TimerCommands,
+    TimerOffCommands,
 )
 
 if TYPE_CHECKING:
@@ -29,10 +30,12 @@ type NumberWriteParser = Callable[[dict[str, Any], int], None]
 class ZentralyNumberApi:
     """High-level API for Zentraly number devices."""
 
-    def __init__(self, device: ZentralyDevice) -> None:
+    def __init__(self, device: ZentralyDevice, *, endpoint: int = 1) -> None:
         """Initialize the number API."""
 
         self._device = device
+        self._endpoint = endpoint
+        self._commands = device.commands.for_endpoint(endpoint)
 
         self._state_listeners: set[NumberStateListener] = set()
         self._remove_report_listener: Callable[[], None] | None = None
@@ -59,7 +62,7 @@ class ZentralyNumberApi:
 
         if not self.supports(capability):
             return None
-        commands = cast(NumberRangeCommands, self._device.commands)
+        commands = cast(NumberRangeCommands, self._commands)
         minimum, maximum, step = commands.number_ranges[capability]
 
         return (
@@ -104,7 +107,7 @@ class ZentralyNumberApi:
         """Parse and dispatch number updates from a device report."""
 
         parser = getattr(
-            self._device.commands,
+            self._commands,
             "parse_report_entry",
             None,
         )
@@ -115,6 +118,8 @@ class ZentralyNumberApi:
         updates: NumberStateUpdate = {}
 
         for entry in report_data:
+            if entry.get("ep") != self._endpoint:
+                continue
             try:
                 result = parser(entry)
 
@@ -222,7 +227,7 @@ class ZentralyNumberApi:
 
         commands = cast(
             TimerCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_number_value(
@@ -240,7 +245,7 @@ class ZentralyNumberApi:
         if not self.supports(NumberCapability.TIMER):
             raise ZentralyValidationError("Unsupported action")
 
-        commands = cast(TimerCommands, self._device.commands)
+        commands = cast(TimerCommands, self._commands)
         await commands.async_set_timer(
             self._device.mac, value, self._device.async_execute_action_command
         )
@@ -254,7 +259,7 @@ class ZentralyNumberApi:
 
         commands = cast(
             HighVoltageLimitCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_number_value(
@@ -271,7 +276,7 @@ class ZentralyNumberApi:
 
         commands = cast(
             HighVoltageLimitCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_number_value(
@@ -288,7 +293,7 @@ class ZentralyNumberApi:
 
         commands = cast(
             LowVoltageLimitCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_number_value(
@@ -305,7 +310,7 @@ class ZentralyNumberApi:
 
         commands = cast(
             LowVoltageLimitCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_number_value(
@@ -322,7 +327,7 @@ class ZentralyNumberApi:
 
         commands = cast(
             HighPowerLimitCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_number_value(
@@ -339,12 +344,46 @@ class ZentralyNumberApi:
 
         commands = cast(
             HighPowerLimitCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_number_value(
             capability=NumberCapability.HIGH_POWER_LIMIT,
             builder=commands.build_write_high_power_limit,
             parser=commands.parse_write_high_power_limit_response,
+            value=value,
+        )
+
+    async def async_get_timer_off(
+        self,
+    ) -> float | None:
+        """Return the configured automatic shut-off duration in minutes."""
+
+        commands = cast(
+            TimerOffCommands,
+            self._commands,
+        )
+
+        return await self._async_get_number_value(
+            capability=NumberCapability.TIMER_OFF,
+            builder=commands.build_read_timer_off,
+            parser=commands.parse_timer_off_response,
+        )
+
+    async def async_set_timer_off(
+        self,
+        value: float,
+    ) -> bool:
+        """Set the configured automatic shut-off duration in minutes."""
+
+        commands = cast(
+            TimerOffCommands,
+            self._commands,
+        )
+
+        return await self._async_set_number_value(
+            capability=NumberCapability.TIMER_OFF,
+            builder=commands.build_write_timer_off,
+            parser=commands.parse_write_timer_off_response,
             value=value,
         )

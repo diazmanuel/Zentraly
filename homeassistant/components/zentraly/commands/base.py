@@ -11,6 +11,15 @@ type ActionCommandExecutor = Callable[
 class ZentralyDeviceCommands:
     """Base commands for Zentraly devices."""
 
+    channel_endpoints: tuple[int, ...] = (1,)
+    power_state_updates: dict[object, Any] = {}
+
+    def for_endpoint(self, endpoint: int) -> ZentralyDeviceCommands:
+        """Return commands bound to a supported channel."""
+        if endpoint != 1:
+            raise ValueError("Unsupported channel endpoint")
+        return self
+
     def get_mac_command(
         self,
         rid: int,

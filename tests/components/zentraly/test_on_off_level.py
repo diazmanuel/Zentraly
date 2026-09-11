@@ -39,6 +39,18 @@ ON_OFF_CASES = [
         SwitchCapability.POWER,
         id="zteim-power",
     ),
+    pytest.param(
+        DeviceModel.ZTIKD,
+        "parse_power_state_response",
+        SwitchCapability.POWER,
+        id="ztikd-power",
+    ),
+    pytest.param(
+        DeviceModel.ZTIKS,
+        "parse_power_state_response",
+        SwitchCapability.POWER,
+        id="ztiks-power",
+    ),
 ]
 
 

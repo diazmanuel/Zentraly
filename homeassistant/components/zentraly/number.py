@@ -35,6 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 _CONFIG_CAPABILITIES = frozenset(
     {
         NumberCapability.TIMER,
+        NumberCapability.TIMER_OFF,
         NumberCapability.HIGH_VOLTAGE_LIMIT,
         NumberCapability.LOW_VOLTAGE_LIMIT,
         NumberCapability.HIGH_POWER_LIMIT,
@@ -47,17 +48,21 @@ def _create_number_entities(
 ) -> list[ZentralyNumber]:
     """Create number entities supported by a Zentraly device."""
 
-    number_api = ZentralyNumberApi(device)
-
-    return [
-        ZentralyNumber(
-            device=device,
-            number_api=number_api,
-            capability=capability,
+    entities: list[ZentralyNumber] = []
+    endpoints = device.commands.channel_endpoints
+    for endpoint in endpoints:
+        number_api = ZentralyNumberApi(device, endpoint=endpoint)
+        entities.extend(
+            ZentralyNumber(
+                device=device,
+                number_api=number_api,
+                capability=capability,
+                channel=endpoint if len(endpoints) > 1 else None,
+            )
+            for capability in NumberCapability
+            if number_api.supports(capability)
         )
-        for capability in NumberCapability
-        if number_api.supports(capability)
-    ]
+    return entities
 
 
 async def async_setup_entry(
@@ -104,6 +109,7 @@ class ZentralyNumber(NumberEntity):
         device: ZentralyDevice,
         number_api: ZentralyNumberApi,
         capability: NumberCapability,
+        channel: int | None = None,
     ) -> None:
         """Initialize the Zentraly number."""
 
@@ -117,6 +123,10 @@ class ZentralyNumber(NumberEntity):
 
         self._attr_unique_id = f"{device.device_id}_{capability.value}"
         self._attr_translation_key = capability.value
+        if channel is not None:
+            self._attr_unique_id += f"_channel_{channel}"
+            self._attr_translation_key += "_channel"
+            self._attr_translation_placeholders = {"channel": str(channel)}
 
         number_range = number_api.get_range(capability)
 
@@ -130,7 +140,7 @@ class ZentralyNumber(NumberEntity):
         if capability in _CONFIG_CAPABILITIES:
             self._attr_entity_category = EntityCategory.CONFIG
 
-        if capability is NumberCapability.TIMER:
+        if capability in (NumberCapability.TIMER, NumberCapability.TIMER_OFF):
             self._attr_native_unit_of_measurement = UnitOfTime.MINUTES
 
         elif capability in (
@@ -301,6 +311,9 @@ class ZentralyNumber(NumberEntity):
             if generation != self._timer_generation:
                 return
 
+        elif self._capability is NumberCapability.TIMER_OFF:
+            value = await self._number_api.async_get_timer_off()
+
         elif self._capability is NumberCapability.HIGH_VOLTAGE_LIMIT:
             value = await self._number_api.async_get_high_voltage_limit()
 
@@ -343,7 +356,10 @@ class ZentralyNumber(NumberEntity):
 
         success: bool
 
-        if self._capability is NumberCapability.HIGH_VOLTAGE_LIMIT:
+        if self._capability is NumberCapability.TIMER_OFF:
+            success = await self._number_api.async_set_timer_off(value)
+
+        elif self._capability is NumberCapability.HIGH_VOLTAGE_LIMIT:
             success = await self._number_api.async_set_high_voltage_limit(value)
 
         elif self._capability is NumberCapability.LOW_VOLTAGE_LIMIT:

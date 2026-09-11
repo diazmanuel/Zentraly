@@ -19,3 +19,4 @@ class SwitchCapability(Enum):
     HIGH_VOLTAGE_PROTECTION = "high_voltage_protection"
     LOW_VOLTAGE_PROTECTION = "low_voltage_protection"
     HIGH_POWER_PROTECTION = "high_power_protection"
+    TIMER_OFF_ENABLE = "timer_off_enable"

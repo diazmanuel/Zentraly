@@ -29,17 +29,21 @@ def _create_select_entities(
 ) -> list[ZentralySelect]:
     """Create select entities supported by a Zentraly device."""
 
-    select_api = ZentralySelectApi(device)
-
-    return [
-        ZentralySelect(
-            device=device,
-            select_api=select_api,
-            capability=capability,
+    entities: list[ZentralySelect] = []
+    endpoints = device.commands.channel_endpoints
+    for endpoint in endpoints:
+        select_api = ZentralySelectApi(device, endpoint=endpoint)
+        entities.extend(
+            ZentralySelect(
+                device=device,
+                select_api=select_api,
+                capability=capability,
+                channel=endpoint if len(endpoints) > 1 else None,
+            )
+            for capability in SelectCapability
+            if select_api.supports(capability)
         )
-        for capability in SelectCapability
-        if select_api.supports(capability)
-    ]
+    return entities
 
 
 async def async_setup_entry(
@@ -86,6 +90,7 @@ class ZentralySelect(SelectEntity):
         device: ZentralyDevice,
         select_api: ZentralySelectApi,
         capability: SelectCapability,
+        channel: int | None = None,
     ) -> None:
         """Initialize the Zentraly select."""
 
@@ -95,6 +100,10 @@ class ZentralySelect(SelectEntity):
 
         self._attr_unique_id = f"{device.device_id}_{capability.value}"
         self._attr_translation_key = capability.value
+        if channel is not None:
+            self._attr_unique_id += f"_channel_{channel}"
+            self._attr_translation_key += "_channel"
+            self._attr_translation_placeholders = {"channel": str(channel)}
 
         self._attr_options = [
             option.value for option in select_api.get_options(capability)

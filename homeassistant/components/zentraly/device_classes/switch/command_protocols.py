@@ -331,3 +331,36 @@ class HighPowerProtectionCommands(Protocol):
         expected_rid: int,
     ) -> None:
         """Parse the high-power-protection write response."""
+
+
+class TimerOffEnableCommands(Protocol):
+    """Commands for devices supporting automatic-shut-off-enable."""
+
+    def build_read_timer_off_enable(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the automatic-shut-off-enable read command."""
+
+    def parse_timer_off_enable_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> bool:
+        """Parse the automatic-shut-off-enable response."""
+
+    def build_write_timer_off_enable(
+        self,
+        rid: int,
+        mac: str,
+        enabled: bool,
+    ) -> dict[str, Any]:
+        """Build the automatic-shut-off-enable write command."""
+
+    def parse_write_timer_off_enable_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> None:
+        """Parse the automatic-shut-off-enable write response."""
