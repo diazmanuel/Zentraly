@@ -28,7 +28,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from tests.common import MockConfigEntry
 
@@ -326,7 +326,9 @@ async def test_setup_parent_device(
 
     assert parent_device is not None
     assert parent_device.manufacturer == "Zentraly"
-    assert parent_device.model == DeviceModel.ZTTIN.value
+    assert parent_device.model == "Termostato Inalámbrico Wi-Fi"
+    assert parent_device.model_id == "ZTTIN"
+    assert parent_device.name == PARENT_DEVICE_ID
     assert parent_device.serial_number == PARENT_DEVICE_ID
     assert (
         dr.CONNECTION_NETWORK_MAC,
@@ -348,8 +350,9 @@ async def test_setup_parent_device(
 async def test_setup_parent_with_child(
     hass: HomeAssistant,
     device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
 ) -> None:
-    """Test setting up a Zentraly parent with a child device."""
+    """Update existing parent and child metadata without changing user identity."""
 
     entry = _parent_entry(
         subentries_data=[
@@ -365,6 +368,33 @@ async def test_setup_parent_with_child(
         ]
     )
     entry.add_to_hass(hass)
+    previous_parent = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, PARENT_DEVICE_ID)},
+        name=PARENT_DEVICE_ID,
+        model="zttin",
+        sw_version="1.2.3",
+        hw_version="2",
+    )
+    previous_child = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        config_subentry_id=next(iter(entry.subentries)),
+        identifiers={(DOMAIN, CHILD_DEVICE_ID)},
+        name=CHILD_DEVICE_ID,
+        model="ztbin",
+        via_device_id=previous_parent.id,
+    )
+    device_registry.async_update_device(previous_parent.id, name_by_user="Living room")
+    device_registry.async_update_device(previous_child.id, name_by_user="Boiler room")
+    previous_entity = entity_registry.async_get_or_create(
+        "switch",
+        DOMAIN,
+        f"{CHILD_DEVICE_ID}_forced_mode",
+        config_entry=entry,
+        config_subentry_id=next(iter(entry.subentries)),
+        device_id=previous_child.id,
+        suggested_object_id="my_boiler",
+    )
 
     with (
         patch(
@@ -432,7 +462,9 @@ async def test_setup_parent_with_child(
     assert child_device is not None
 
     assert parent_device.manufacturer == "Zentraly"
-    assert parent_device.model == DeviceModel.ZTTIN.value
+    assert parent_device.model == "Termostato Inalámbrico Wi-Fi"
+    assert parent_device.model_id == "ZTTIN"
+    assert parent_device.name == PARENT_DEVICE_ID
     assert parent_device.serial_number == PARENT_DEVICE_ID
     assert (
         dr.CONNECTION_NETWORK_MAC,
@@ -440,13 +472,23 @@ async def test_setup_parent_with_child(
     ) in parent_device.connections
 
     assert child_device.manufacturer == "Zentraly"
-    assert child_device.model == DeviceModel.ZTBIN.value
+    assert child_device.model == "Boiler Inalámbrico"
+    assert child_device.model_id == "ZTBIN"
+    assert child_device.name == CHILD_DEVICE_ID
     assert child_device.serial_number == CHILD_DEVICE_ID
     assert (
         dr.CONNECTION_NETWORK_MAC,
         dr.format_mac(CHILD_MAC),
     ) in child_device.connections
 
+    assert parent_device.id == previous_parent.id
+    assert child_device.id == previous_child.id
+    assert parent_device.name_by_user == "Living room"
+    assert child_device.name_by_user == "Boiler room"
+    assert parent_device.sw_version == "1.2.3"
+    assert parent_device.hw_version == "2"
+    assert len(dr.async_entries_for_config_entry(device_registry, entry.entry_id)) == 2
+    assert entity_registry.async_get(previous_entity.entity_id) == previous_entity
     assert child_device.via_device_id == parent_device.id
 
     mock_connect.assert_awaited_once()
@@ -524,7 +566,9 @@ async def test_setup_zteim_device(
 
     assert registry_device is not None
     assert registry_device.manufacturer == "Zentraly"
-    assert registry_device.model == DeviceModel.ZTEIM.value
+    assert registry_device.model == "Enchufe zentraly mini"
+    assert registry_device.model_id == "ZTEIM"
+    assert registry_device.name == ZTEIM_DEVICE_ID
     assert registry_device.serial_number == ZTEIM_DEVICE_ID
     assert (
         dr.CONNECTION_NETWORK_MAC,

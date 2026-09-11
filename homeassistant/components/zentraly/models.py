@@ -15,7 +15,7 @@ from .commands.protocol import ResponseStatus
 from .const import DOMAIN
 from .device_classes.sensor.capabilities import SensorCapability
 from .device_classes.types import ZentralyOutputType
-from .devices.device import DeviceModel
+from .devices.device import DEVICE_PREFIXES, DeviceModel
 from .exceptions import (
     ZentralyCommandRejectedError,
     ZentralyConnectionError,
@@ -175,9 +175,9 @@ class ZentralyDevice:
 
     @property
     def model(self) -> str:
-        """Return the device model name."""
+        """Return the commercial model name."""
 
-        return self.device_model.value
+        return DEVICE_PREFIXES[self.device_model.name]["commercial_name"]
 
     @property
     def configuration_url(self) -> str:
@@ -204,6 +204,7 @@ class ZentralyDevice:
             },
             manufacturer="Zentraly",
             model=self.model,
+            model_id=self.device_model.name,
             name=self.device_id,
             serial_number=self.device_id,
             configuration_url=self.configuration_url,
