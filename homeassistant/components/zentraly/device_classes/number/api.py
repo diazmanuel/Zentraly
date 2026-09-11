@@ -126,21 +126,17 @@ class ZentralyNumberApi:
             except TypeError, ValueError:
                 continue
 
-            if result is None:
-                continue
+            for capability, value in result.items():
+                if not isinstance(capability, NumberCapability):
+                    continue
 
-            capability, value = result
+                if not self.supports(capability):
+                    continue
 
-            if not isinstance(capability, NumberCapability):
-                continue
+                if not isinstance(value, int | float):
+                    continue
 
-            if not self.supports(capability):
-                continue
-
-            if not isinstance(value, int | float):
-                continue
-
-            updates[capability] = float(value)
+                updates[capability] = float(value)
 
         if not updates:
             return

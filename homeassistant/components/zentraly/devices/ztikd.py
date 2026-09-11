@@ -2,7 +2,7 @@
 
 from typing import Any, Self, override
 
-from ..commands.base import ZentralyDeviceCommands
+from ..commands.base import ReportUpdates, ZentralyDeviceCommands
 from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.button.capabilities import ButtonCapability
@@ -161,16 +161,10 @@ class ZtikdCommands(ZentralyDeviceCommands):
     def parse_report_entry(
         self,
         entry: dict[str, Any],
-    ) -> (
-        tuple[
-            SwitchCapability | NumberCapability | SelectCapability | SensorCapability,
-            Any,
-        ]
-        | None
-    ):
+    ) -> ReportUpdates:
         """Decode supported attributes for this channel."""
         if type(entry.get("ep")) is not int or entry["ep"] != self._endpoint:
-            return None
+            return {}
         cluster = entry.get("cluster")
         attribute_id = entry.get("id")
         if (
@@ -178,35 +172,40 @@ class ZtikdCommands(ZentralyDeviceCommands):
             or type(attribute_id) is not int
             or "val" not in entry
         ):
-            return None
+            return {}
         value = entry["val"]
         if (
             cluster == self.WIFI_CLUSTER
             and attribute_id == self.WIFI_SIGNAL_POWER_ATTRIBUTE_ID
             and self._endpoint == self.ENDPOINT
         ):
-            return SensorCapability.WIFI_SIGNAL_POWER, self._parse_integer(value)
+            return {SensorCapability.WIFI_SIGNAL_POWER: self._parse_integer(value)}
         if cluster != self.ELECTRICAL_CLUSTER:
-            return None
+            return {}
         match attribute_id:
             case self.POWER_STATE_ATTRIBUTE_ID:
-                return (
-                    SwitchCapability.POWER,
-                    ZentralyCommonCommands.parse_on_off_level(value),
-                )
+                return {
+                    SwitchCapability.POWER: ZentralyCommonCommands.parse_on_off_level(
+                        value
+                    )
+                }
             case self.OPERATION_MODE_ATTRIBUTE_ID:
-                return SelectCapability.OPERATION_MODE, self._operation_mode_from_raw(
-                    value
-                )
+                return {
+                    SelectCapability.OPERATION_MODE: self._operation_mode_from_raw(
+                        value
+                    )
+                }
             case self.RETURN_TO_CRONO_ATTRIBUTE_ID:
-                return SwitchCapability.RETURN_TO_CRONO, self._parse_binary_value(value)
+                return {
+                    SwitchCapability.RETURN_TO_CRONO: self._parse_binary_value(value)
+                }
             case self.TIMER_OFF_ENABLE_ATTRIBUTE_ID:
-                return SwitchCapability.TIMER_OFF_ENABLE, self._parse_binary_value(
-                    value
-                )
+                return {
+                    SwitchCapability.TIMER_OFF_ENABLE: self._parse_binary_value(value)
+                }
             case self.TIMER_OFF_ATTRIBUTE_ID:
-                return NumberCapability.TIMER_OFF, self._timer_off_from_raw(value)
-        return None
+                return {NumberCapability.TIMER_OFF: self._timer_off_from_raw(value)}
+        return {}
 
     @override
     def get_mac_command(self, rid: int) -> dict[str, Any]:

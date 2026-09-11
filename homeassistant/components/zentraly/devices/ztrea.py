@@ -3,7 +3,7 @@
 from enum import IntEnum
 from typing import Any, override
 
-from ..commands.base import ZentralyDeviceCommands
+from ..commands.base import ReportUpdates, ZentralyDeviceCommands
 from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.button.capabilities import ButtonCapability
@@ -308,89 +308,68 @@ class ZtreaCommands(ZentralyDeviceCommands):
     # Reports
     #
 
-    def parse_report_entry(
-        self,
-        entry: dict[str, Any],
-    ) -> tuple[ClimateCapability | SwitchCapability, Any] | None:
-        """Parse a supported ZTREA report entry."""
-
-        if entry.get("mac") not in (None, "") and not isinstance(
-            entry.get("mac"),
-            str,
-        ):
-            return None
-
-        if entry.get("ep") != self.ENDPOINT:
-            return None
-
+    def parse_report_entry(self, entry: dict[str, Any]) -> ReportUpdates:
+        """Decode every supported ZTREA state present in a report attribute."""
+        if type(entry.get("ep")) is not int or entry["ep"] != self.ENDPOINT:
+            return {}
         cluster = entry.get("cluster")
         attribute_id = entry.get("id")
-
-        if not isinstance(cluster, int):
-            return None
-
-        if not isinstance(attribute_id, int):
-            return None
-
-        if "val" not in entry:
-            return None
-
-        value = entry["val"]
-
-        if cluster != self.THERMOSTAT_CLUSTER:
-            return None
-
-        if attribute_id == self.LOCAL_TEMPERATURE_ATTRIBUTE_ID:
-            return (
-                ClimateCapability.LOCAL_TEMPERATURE,
-                self._temperature_from_raw(
-                    self._parse_integer(value),
-                ),
-            )
-
-        if attribute_id == self.HEAT_DEMAND_ATTRIBUTE_ID:
-            return (
-                ClimateCapability.HEAT_DEMAND,
-                self._parse_binary_value(
-                    value,
-                    "heat demand",
-                ),
-            )
-
-        if attribute_id == self.AWAY_TEMPERATURE_ATTRIBUTE_ID:
-            return (
-                ClimateCapability.AWAY_TEMPERATURE,
-                self._temperature_from_raw(
-                    self._parse_integer(value),
-                ),
-            )
-
-        if attribute_id == self.TARGET_TEMPERATURE_ATTRIBUTE_ID:
-            return (
-                ClimateCapability.TARGET_TEMPERATURE,
-                self._temperature_from_raw(
-                    self._parse_integer(value),
-                ),
-            )
-
-        if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
-            return (
-                ClimateCapability.OPERATION_MODE,
-                self._operation_mode_from_raw(
-                    self._parse_integer(value),
-                ),
-            )
-
-        if attribute_id == self.CHILD_LOCK_ATTRIBUTE_ID:
-            return (
-                SwitchCapability.CHILD_LOCK,
-                self._parse_binary_value(
-                    value,
-                    "child lock",
-                ),
-            )
-
-        return None
+        if (
+            type(cluster) is not int
+            or type(attribute_id) is not int
+            or "val" not in entry
+        ):
+            return {}
+        if type(entry["val"]) is not int:
+            return {}
+        value = self._parse_integer(entry["val"])
+        if cluster == self.THERMOSTAT_CLUSTER:
+            if attribute_id == self.LOCAL_TEMPERATURE_ATTRIBUTE_ID:
+                return {
+                    ClimateCapability.LOCAL_TEMPERATURE: self._temperature_from_raw(
+                        value
+                    )
+                }
+            if attribute_id == self.TARGET_TEMPERATURE_ATTRIBUTE_ID:
+                return {
+                    ClimateCapability.TARGET_TEMPERATURE: self._temperature_from_raw(
+                        value
+                    )
+                }
+            if attribute_id == self.AWAY_TEMPERATURE_ATTRIBUTE_ID:
+                return {
+                    ClimateCapability.AWAY_TEMPERATURE: self._temperature_from_raw(
+                        value
+                    )
+                }
+            if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
+                return {
+                    ClimateCapability.OPERATION_MODE: self._operation_mode_from_raw(
+                        value
+                    )
+                }
+            if attribute_id == self.CHILD_LOCK_ATTRIBUTE_ID:
+                return {
+                    SwitchCapability.CHILD_LOCK: self._parse_binary_value(
+                        value, "child lock"
+                    )
+                }
+            if attribute_id == self.HEAT_DEMAND_ATTRIBUTE_ID:
+                return {
+                    ClimateCapability.HEAT_DEMAND: self._parse_binary_value(
+                        value, "heat demand"
+                    )
+                }
+            if attribute_id == self.ALWAYS_ON_DISPLAY_ATTRIBUTE_ID:
+                return {
+                    SwitchCapability.ALWAYS_ON_DISPLAY: self._parse_binary_value(
+                        value, "always-on display"
+                    )
+                }
+        if cluster == self.BASIC_CLUSTER:
+            if attribute_id == self.WIFI_SIGNAL_POWER_ATTRIBUTE_ID:
+                return {SensorCapability.WIFI_SIGNAL_POWER: value}
+        return {}
 
     #
     # Device MAC - Zeroconf discovery

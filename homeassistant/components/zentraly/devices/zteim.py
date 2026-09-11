@@ -3,7 +3,7 @@
 from enum import IntEnum
 from typing import Any, override
 
-from ..commands.base import ActionCommandExecutor, ZentralyDeviceCommands
+from ..commands.base import ActionCommandExecutor, ReportUpdates, ZentralyDeviceCommands
 from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.button.capabilities import ButtonCapability
@@ -435,91 +435,91 @@ class ZteimCommands(ZentralyDeviceCommands):
         except KeyError as err:
             raise ValueError(f"Unsupported operation mode for ZTEIM: {mode}") from err
 
-    def parse_report_entry(
-        self,
-        entry: dict[str, Any],
-    ) -> (
-        tuple[
-            SwitchCapability | SensorCapability | SelectCapability,
-            Any,
-        ]
-        | None
-    ):
-        """Parse a supported ZTEIM report entry."""
+    @staticmethod
+    def _timer_from_raw(value: int) -> float:
+        """Decode the timer's seconds while excluding the power-state bit."""
+        if value < 0:
+            raise ValueError(f"Invalid ZTEIM timer value: {value}")
+        return float((value & ~1) // 60)
 
-        if entry.get("mac") not in (None, "") and not isinstance(
-            entry.get("mac"),
-            str,
-        ):
-            return None
-
-        if entry.get("ep") != self.ENDPOINT:
-            return None
-
+    def parse_report_entry(self, entry: dict[str, Any]) -> ReportUpdates:
+        """Decode every supported ZTEIM state present in a report attribute."""
+        if type(entry.get("ep")) is not int or entry["ep"] != self.ENDPOINT:
+            return {}
         cluster = entry.get("cluster")
         attribute_id = entry.get("id")
-
-        if not isinstance(cluster, int):
-            return None
-
-        if not isinstance(attribute_id, int):
-            return None
-
-        if "val" not in entry:
-            return None
-
-        value = entry["val"]
-
-        if cluster != self.ELECTRICAL_CLUSTER:
-            return None
-
-        if attribute_id == self.POWER_STATE_ATTRIBUTE_ID:
-            return (
-                SwitchCapability.POWER,
-                ZentralyCommonCommands.parse_on_off_level(value),
-            )
-
-        if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
-            return (
-                SelectCapability.OPERATION_MODE,
-                self._operation_mode_from_raw(
-                    self._parse_integer(value),
-                ),
-            )
-
-        if attribute_id == self.VOLTAGE_ATTRIBUTE_ID:
-            return (
-                SensorCapability.VOLTAGE,
-                self._value_from_raw_x100(
-                    self._parse_integer(value),
-                ),
-            )
-
-        if attribute_id == self.CURRENT_ATTRIBUTE_ID:
-            return (
-                SensorCapability.CURRENT,
-                self._value_from_raw_x100(
-                    self._parse_integer(value),
-                ),
-            )
-
-        if attribute_id == self.POWER_ATTRIBUTE_ID:
-            return (
-                SensorCapability.POWER,
-                self._value_from_raw_x100(
-                    self._parse_integer(value),
-                ),
-            )
-
-        if attribute_id == self.DAILY_ENERGY_ATTRIBUTE_ID:
-            return (
-                SensorCapability.DAILY_ENERGY,
-                self._value_from_raw_x100(
-                    self._parse_integer(value),
-                ),
-            )
-
-        return None
+        if (
+            type(cluster) is not int
+            or type(attribute_id) is not int
+            or "val" not in entry
+        ):
+            return {}
+        if type(entry["val"]) is not int:
+            return {}
+        value = self._parse_integer(entry["val"])
+        if cluster == self.WIFI_CLUSTER:
+            if attribute_id == self.WIFI_SIGNAL_POWER_ATTRIBUTE_ID:
+                return {SensorCapability.WIFI_SIGNAL_POWER: value}
+        if cluster == self.ELECTRICAL_CLUSTER:
+            if attribute_id == self.POWER_STATE_ATTRIBUTE_ID:
+                return {
+                    SwitchCapability.POWER: ZentralyCommonCommands.parse_on_off_level(
+                        value
+                    )
+                }
+            if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
+                return {
+                    SelectCapability.OPERATION_MODE: self._operation_mode_from_raw(
+                        value
+                    )
+                }
+            if attribute_id == self.TIMER_ATTRIBUTE_ID:
+                return {NumberCapability.TIMER: self._timer_from_raw(value)}
+            if attribute_id == self.VOLTAGE_ATTRIBUTE_ID:
+                return {SensorCapability.VOLTAGE: self._value_from_raw_x100(value)}
+            if attribute_id == self.CURRENT_ATTRIBUTE_ID:
+                return {SensorCapability.CURRENT: self._value_from_raw_x100(value)}
+            if attribute_id == self.POWER_ATTRIBUTE_ID:
+                return {SensorCapability.POWER: self._value_from_raw_x100(value)}
+            if attribute_id == self.DAILY_ENERGY_ATTRIBUTE_ID:
+                return {SensorCapability.DAILY_ENERGY: self._value_from_raw_x100(value)}
+            if attribute_id == self.ALWAYS_ON_LED_ATTRIBUTE_ID:
+                return {
+                    SwitchCapability.ALWAYS_ON_LED: self._parse_binary_value(
+                        value, "always on led"
+                    )
+                }
+            if attribute_id == self.RETURN_TO_CRONO_ATTRIBUTE_ID:
+                return {
+                    SwitchCapability.RETURN_TO_CRONO: self._parse_binary_value(
+                        value, "return to crono"
+                    )
+                }
+            if attribute_id == self.HIGH_VOLTAGE_PROTECTION_ATTRIBUTE_ID:
+                return {
+                    SwitchCapability.HIGH_VOLTAGE_PROTECTION: self._parse_binary_value(
+                        value, "high voltage protection"
+                    )
+                }
+            if attribute_id == self.LOW_VOLTAGE_PROTECTION_ATTRIBUTE_ID:
+                return {
+                    SwitchCapability.LOW_VOLTAGE_PROTECTION: self._parse_binary_value(
+                        value, "low voltage protection"
+                    )
+                }
+            if attribute_id == self.HIGH_POWER_PROTECTION_ATTRIBUTE_ID:
+                return {
+                    SwitchCapability.HIGH_POWER_PROTECTION: self._parse_binary_value(
+                        value, "high power protection"
+                    )
+                }
+            if attribute_id == self.HIGH_VOLTAGE_LIMIT_ATTRIBUTE_ID:
+                return {NumberCapability.HIGH_VOLTAGE_LIMIT: float(value)}
+            if attribute_id == self.LOW_VOLTAGE_LIMIT_ATTRIBUTE_ID:
+                return {NumberCapability.LOW_VOLTAGE_LIMIT: float(value)}
+            if attribute_id == self.HIGH_POWER_LIMIT_ATTRIBUTE_ID:
+                return {NumberCapability.HIGH_POWER_LIMIT: float(value)}
+        return {}
 
     @override
     def get_mac_command(
@@ -949,12 +949,7 @@ class ZteimCommands(ZentralyDeviceCommands):
             self.TIMER_ATTRIBUTE_ID,
         )
 
-        if raw_value < 0:
-            raise ValueError(f"Invalid ZTEIM timer value: {raw_value}")
-
-        duration_seconds = raw_value & ~1
-
-        return float(duration_seconds // 60)
+        return self._timer_from_raw(raw_value)
 
     async def async_set_timer(
         self, mac: str, value: float, execute: ActionCommandExecutor

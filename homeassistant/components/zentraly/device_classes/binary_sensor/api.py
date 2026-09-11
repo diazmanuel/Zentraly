@@ -98,26 +98,22 @@ class ZentralyBinarySensorApi:
             except TypeError, ValueError:
                 continue
 
-            if result is None:
-                continue
-
-            capability, value = result
-
-            if not isinstance(capability, BinarySensorCapability):
-                continue
-
-            if not self.supports(capability):
-                continue
-
-            if capability in _OPENTHERM_CAPABILITIES:
-                if not self._device.opentherm_connected:
-                    updates[capability] = None
+            for capability, value in result.items():
+                if not isinstance(capability, BinarySensorCapability):
                     continue
 
-            if not isinstance(value, bool):
-                continue
+                if not self.supports(capability):
+                    continue
 
-            updates[capability] = value
+                if capability in _OPENTHERM_CAPABILITIES:
+                    if not self._device.opentherm_connected:
+                        updates[capability] = None
+                        continue
+
+                if not isinstance(value, bool):
+                    continue
+
+                updates[capability] = value
 
         if not updates:
             return

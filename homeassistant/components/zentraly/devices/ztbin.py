@@ -2,7 +2,7 @@
 
 from typing import Any, override
 
-from ..commands.base import ZentralyDeviceCommands
+from ..commands.base import ReportUpdates, ZentralyDeviceCommands
 from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.binary_sensor.capabilities import BinarySensorCapability
@@ -303,86 +303,85 @@ class ZtbinCommands(ZentralyDeviceCommands):
             expected_rid,
         )
 
-    #
-    # Reports
-    #
-    # Only attributes marked reportable are parsed here.
-    #
+    @classmethod
+    def _ot_status_from_raw(cls, status: int) -> dict[BinarySensorCapability, bool]:
+        """Decode all OpenTherm indicators from a single status word."""
+        return {
+            BinarySensorCapability.OT_HEATING_WATER_ACTIVE: bool(
+                status & (1 << cls.OT_HEATING_WATER_ACTIVE_BIT)
+            ),
+            BinarySensorCapability.OT_DHW_ENABLED: bool(
+                status & (1 << cls.OT_DHW_ENABLED_BIT)
+            ),
+            BinarySensorCapability.OT_WINTER_MODE: not bool(
+                status & (1 << cls.OT_WINTER_MODE_BIT)
+            ),
+        }
 
-    def parse_report_entry(
-        self,
-        entry: dict[str, Any],
-    ) -> (
-        tuple[
-            BinarySensorCapability | SensorCapability | SwitchCapability,
-            Any,
-        ]
-        | None
-    ):
-        """Parse a supported ZTBIN report entry."""
+    def _parse_opentherm_report(self, attribute_id: int, value: int) -> ReportUpdates:
+        """Decode supported OpenTherm states using the model's wire scales."""
+        if attribute_id == self.OT_STATUS_ATTRIBUTE_ID:
+            return dict(self._ot_status_from_raw(value).items())
+        if attribute_id == self.ERROR_ID_ATTRIBUTE_ID:
+            return {SensorCapability.ERROR_ID: value}
+        if attribute_id == self.CH_SETPOINT_ATTRIBUTE_ID:
+            return {SensorCapability.CH_SETPOINT: value / 100}
+        if attribute_id == self.MODULATION_LEVEL_ATTRIBUTE_ID:
+            return {SensorCapability.MODULATION_LEVEL: value}
+        if attribute_id == self.CH_WATER_PRESSURE_ATTRIBUTE_ID:
+            return {SensorCapability.CH_WATER_PRESSURE: value}
+        if attribute_id == self.DHW_FLOW_RATE_ATTRIBUTE_ID:
+            return {SensorCapability.DHW_FLOW_RATE: value}
+        if attribute_id == self.FEED_TEMPERATURE_ATTRIBUTE_ID:
+            return {SensorCapability.FEED_TEMPERATURE: value}
+        if attribute_id == self.DHW_TEMPERATURE_ATTRIBUTE_ID:
+            return {SensorCapability.DHW_TEMPERATURE: value}
+        if attribute_id == self.DHW_SETPOINT_ATTRIBUTE_ID:
+            return {SensorCapability.DHW_SETPOINT: value / 100}
+        if attribute_id == self.OUTPUT_TYPE_ATTRIBUTE_ID:
+            return {SensorCapability.OUTPUT_TYPE: self._output_type_from_raw(value)}
+        if attribute_id == self.COMFORT_MODE_ATTRIBUTE_ID:
+            return {
+                SwitchCapability.COMFORT_MODE: self._parse_binary_value(
+                    value, "comfort mode"
+                )
+            }
+        return {}
 
-        if entry.get("mac") not in (None, "") and not isinstance(
-            entry.get("mac"),
-            str,
-        ):
-            return None
-
-        if entry.get("ep") != self.ENDPOINT:
-            return None
-
+    def parse_report_entry(self, entry: dict[str, Any]) -> ReportUpdates:
+        """Decode every supported ZTBIN state present in a report attribute."""
+        if type(entry.get("ep")) is not int or entry["ep"] != self.ENDPOINT:
+            return {}
         cluster = entry.get("cluster")
         attribute_id = entry.get("id")
-
-        if not isinstance(cluster, int):
-            return None
-
-        if not isinstance(attribute_id, int):
-            return None
-
-        if "val" not in entry:
-            return None
-
-        value = entry["val"]
-
+        if (
+            type(cluster) is not int
+            or type(attribute_id) is not int
+            or "val" not in entry
+        ):
+            return {}
+        if type(entry["val"]) is not int:
+            return {}
+        value = self._parse_integer(entry["val"])
         if cluster == self.BOILER_STATE_CLUSTER:
             if attribute_id == self.BOILER_ON_ATTRIBUTE_ID:
-                return (
-                    BinarySensorCapability.BOILER_ON,
-                    ZentralyCommonCommands.parse_on_off_level(value),
-                )
-
+                return {
+                    BinarySensorCapability.BOILER_ON: ZentralyCommonCommands.parse_on_off_level(
+                        value
+                    )
+                }
             if attribute_id == self.FORCED_MODE_ATTRIBUTE_ID:
-                return (
-                    SwitchCapability.FORCED_MODE,
-                    self._parse_binary_value(
-                        value,
-                        "forced mode",
-                    ),
-                )
-
+                return {
+                    SwitchCapability.FORCED_MODE: self._parse_binary_value(
+                        value, "forced mode"
+                    )
+                }
         if cluster == self.RSSI_CLUSTER:
             if attribute_id == self.RSSI_ATTRIBUTE_ID:
-                return (
-                    SensorCapability.RSSI,
-                    self._parse_integer(value),
-                )
-
+                return {SensorCapability.RSSI: value}
         if cluster == self.OPENTHERM_CLUSTER:
-            if attribute_id == self.ERROR_ID_ATTRIBUTE_ID:
-                return (
-                    SensorCapability.ERROR_ID,
-                    self._parse_integer(value),
-                )
-
-            if attribute_id == self.OUTPUT_TYPE_ATTRIBUTE_ID:
-                return (
-                    SensorCapability.OUTPUT_TYPE,
-                    self._output_type_from_raw(
-                        self._parse_integer(value),
-                    ),
-                )
-
-        return None
+            return self._parse_opentherm_report(attribute_id, value)
+        return {}
 
     #
     # MAC address
@@ -717,7 +716,9 @@ class ZtbinCommands(ZentralyDeviceCommands):
             expected_rid,
         )
 
-        return bool(status & (1 << self.OT_HEATING_WATER_ACTIVE_BIT))
+        return self._ot_status_from_raw(status)[
+            BinarySensorCapability.OT_HEATING_WATER_ACTIVE
+        ]
 
     def build_read_ot_dhw_enabled(
         self,
@@ -743,7 +744,7 @@ class ZtbinCommands(ZentralyDeviceCommands):
             expected_rid,
         )
 
-        return bool(status & (1 << self.OT_DHW_ENABLED_BIT))
+        return self._ot_status_from_raw(status)[BinarySensorCapability.OT_DHW_ENABLED]
 
     def build_read_ot_winter_mode(
         self,
@@ -769,7 +770,7 @@ class ZtbinCommands(ZentralyDeviceCommands):
             expected_rid,
         )
 
-        return not bool(status & (1 << self.OT_WINTER_MODE_BIT))
+        return self._ot_status_from_raw(status)[BinarySensorCapability.OT_WINTER_MODE]
 
     #
     # OpenTherm CH setpoint - R
