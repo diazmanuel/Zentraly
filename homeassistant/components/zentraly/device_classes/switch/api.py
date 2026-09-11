@@ -118,27 +118,23 @@ class ZentralySwitchApi:
             except TypeError, ValueError:
                 continue
 
-            if result is None:
-                continue
+            for capability, value in result.items():
+                if not isinstance(capability, SwitchCapability):
+                    continue
 
-            capability, value = result
+                if not self.supports(capability):
+                    continue
 
-            if not isinstance(capability, SwitchCapability):
-                continue
+                if (
+                    capability in _OPENTHERM_CAPABILITIES
+                    and not self._device.opentherm_connected
+                ):
+                    continue
 
-            if not self.supports(capability):
-                continue
+                if not isinstance(value, bool):
+                    continue
 
-            if (
-                capability in _OPENTHERM_CAPABILITIES
-                and not self._device.opentherm_connected
-            ):
-                continue
-
-            if not isinstance(value, bool):
-                continue
-
-            updates[capability] = value
+                updates[capability] = value
 
         if not updates:
             return

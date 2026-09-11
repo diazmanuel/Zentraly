@@ -110,18 +110,14 @@ class ZentralyClimateApi:
             except TypeError, ValueError:
                 continue
 
-            if result is None:
-                continue
+            for capability, value in result.items():
+                if not isinstance(capability, ClimateCapability):
+                    continue
 
-            capability, value = result
+                if not self.supports(capability):
+                    continue
 
-            if not isinstance(capability, ClimateCapability):
-                continue
-
-            if not self.supports(capability):
-                continue
-
-            updates[capability] = value
+                updates[capability] = value
 
         if not updates:
             return

@@ -113,22 +113,18 @@ class ZentralySensorApi:
             except TypeError, ValueError:
                 continue
 
-            if result is None:
-                continue
-
-            capability, value = result
-
-            if not isinstance(capability, SensorCapability):
-                continue
-
-            if not self.supports(capability):
-                continue
-
-            if capability is SensorCapability.OUTPUT_TYPE:
-                if not isinstance(value, ZentralyOutputType):
+            for capability, value in result.items():
+                if not isinstance(capability, SensorCapability):
                     continue
 
-            updates[capability] = value
+                if not self.supports(capability):
+                    continue
+
+                if capability is SensorCapability.OUTPUT_TYPE:
+                    if not isinstance(value, ZentralyOutputType):
+                        continue
+
+                updates[capability] = value
 
         if not updates:
             return

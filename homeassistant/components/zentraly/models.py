@@ -132,16 +132,14 @@ class ZentralyDevice:
                 result = parser(entry)
             except TypeError, ValueError:
                 continue
-            if result is None:
-                continue
-            capability, value = result
-            if not self.supports(capability):
-                continue
-            self._set_responding(True)
-            if capability is SensorCapability.OUTPUT_TYPE and isinstance(
-                value, ZentralyOutputType
-            ):
-                self.set_output_type(value)
+            for capability, value in result.items():
+                if not self.supports(capability):
+                    continue
+                self._set_responding(True)
+                if capability is SensorCapability.OUTPUT_TYPE and isinstance(
+                    value, ZentralyOutputType
+                ):
+                    self.set_output_type(value)
         for listener in tuple(self._report_listeners):
             listener(report_data)
 

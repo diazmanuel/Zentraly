@@ -3,7 +3,7 @@
 from enum import IntEnum
 from typing import Any, override
 
-from ..commands.base import ZentralyDeviceCommands
+from ..commands.base import ReportUpdates, ZentralyDeviceCommands
 from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.button.capabilities import ButtonCapability
@@ -262,103 +262,68 @@ class ZttinCommands(ZentralyDeviceCommands):
     # Reports
     #
 
-    def parse_report_entry(
-        self,
-        entry: dict[str, Any],
-    ) -> tuple[ClimateCapability | SwitchCapability, Any] | None:
-        """Parse a supported ZTTIN report entry."""
-
-        if entry.get("mac") not in (None, "") and not isinstance(
-            entry.get("mac"),
-            str,
-        ):
-            return None
-
-        if entry.get("ep") != self.ENDPOINT:
-            return None
-
+    def parse_report_entry(self, entry: dict[str, Any]) -> ReportUpdates:
+        """Decode every supported ZTTIN state present in a report attribute."""
+        if type(entry.get("ep")) is not int or entry["ep"] != self.ENDPOINT:
+            return {}
         cluster = entry.get("cluster")
         attribute_id = entry.get("id")
-
-        if not isinstance(cluster, int):
-            return None
-
-        if not isinstance(attribute_id, int):
-            return None
-
-        if "val" not in entry:
-            return None
-
-        value = entry["val"]
-
+        if (
+            type(cluster) is not int
+            or type(attribute_id) is not int
+            or "val" not in entry
+        ):
+            return {}
+        if type(entry["val"]) is not int:
+            return {}
+        value = self._parse_integer(entry["val"])
         if cluster == self.TEMPERATURE_CLUSTER:
             if attribute_id == self.LOCAL_TEMPERATURE_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.LOCAL_TEMPERATURE,
-                    self._temperature_from_raw(raw_value),
-                )
-
-            if attribute_id == self.HUMIDITY_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.HUMIDITY,
-                    self._humidity_from_raw(raw_value),
-                )
-
+                return {
+                    ClimateCapability.LOCAL_TEMPERATURE: self._temperature_from_raw(
+                        value
+                    )
+                }
             if attribute_id == self.TARGET_TEMPERATURE_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.TARGET_TEMPERATURE,
-                    self._temperature_from_raw(raw_value),
-                )
-
-            if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.OPERATION_MODE,
-                    self._operation_mode_from_raw(raw_value),
-                )
-
-            if attribute_id == self.LOCAL_TEMPERATURE_OFFSET_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.TEMPERATURE_OFFSET,
-                    self._temperature_from_raw(raw_value),
-                )
-
+                return {
+                    ClimateCapability.TARGET_TEMPERATURE: self._temperature_from_raw(
+                        value
+                    )
+                }
             if attribute_id == self.AWAY_TEMPERATURE_ATTRIBUTE_ID:
-                raw_value = self._parse_integer(value)
-
-                return (
-                    ClimateCapability.AWAY_TEMPERATURE,
-                    self._temperature_from_raw(raw_value),
-                )
-
+                return {
+                    ClimateCapability.AWAY_TEMPERATURE: self._temperature_from_raw(
+                        value
+                    )
+                }
+            if attribute_id == self.OPERATION_MODE_ATTRIBUTE_ID:
+                return {
+                    ClimateCapability.OPERATION_MODE: self._operation_mode_from_raw(
+                        value
+                    )
+                }
             if attribute_id == self.CHILD_LOCK_ATTRIBUTE_ID:
-                return (
-                    SwitchCapability.CHILD_LOCK,
-                    self._parse_binary_value(
-                        value,
-                        "child lock",
-                    ),
-                )
-
-        if (
-            cluster == self.HEAT_DEMAND_CLUSTER
-            and attribute_id == self.HEAT_DEMAND_ATTRIBUTE_ID
-        ):
-            return (
-                ClimateCapability.HEAT_DEMAND,
-                ZentralyCommonCommands.parse_on_off_level(value),
-            )
-
-        return None
+                return {
+                    SwitchCapability.CHILD_LOCK: self._parse_binary_value(
+                        value, "child lock"
+                    )
+                }
+            if attribute_id == self.HUMIDITY_ATTRIBUTE_ID:
+                return {ClimateCapability.HUMIDITY: self._humidity_from_raw(value)}
+            if attribute_id == self.LOCAL_TEMPERATURE_OFFSET_ATTRIBUTE_ID:
+                return {
+                    ClimateCapability.TEMPERATURE_OFFSET: self._temperature_from_raw(
+                        value
+                    )
+                }
+        if cluster == self.HEAT_DEMAND_CLUSTER:
+            if attribute_id == self.HEAT_DEMAND_ATTRIBUTE_ID:
+                return {
+                    ClimateCapability.HEAT_DEMAND: ZentralyCommonCommands.parse_on_off_level(
+                        value
+                    )
+                }
+        return {}
 
     #
     # MAC address - Zeroconf discovery

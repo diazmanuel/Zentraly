@@ -3,6 +3,8 @@
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+type ReportUpdates = dict[object, Any]
+
 type ActionCommandExecutor = Callable[
     [Callable[[int], dict[str, Any]]], Awaitable[tuple[int, dict[str, Any]]]
 ]

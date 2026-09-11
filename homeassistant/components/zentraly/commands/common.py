@@ -198,8 +198,4 @@ class ZentralyCommonCommands:
         if not isinstance(data, list):
             raise TypeError("Invalid data in report")
 
-        for item in data:
-            if not isinstance(item, dict):
-                raise TypeError("Invalid report data entry")
-
-        return data
+        return [item for item in data if isinstance(item, dict)]
