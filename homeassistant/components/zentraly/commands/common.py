@@ -10,6 +10,15 @@ class ZentralyCommonCommands:
     """Commands shared by all Zentraly devices."""
 
     @staticmethod
+    def parse_on_off_level(value: Any) -> bool:
+        """Decode cluster 65006 attribute 0 as an on/off level."""
+        if type(value) is not int:
+            raise TypeError("Expected integer on/off level")
+        if not 0 <= value <= 100:
+            raise ValueError("On/off level must be between 0 and 100")
+        return value > 0
+
+    @staticmethod
     def build_login(rid: int, password: str) -> dict[str, Any]:
         """Build the login command."""
 

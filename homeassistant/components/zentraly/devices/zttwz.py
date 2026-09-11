@@ -421,10 +421,7 @@ class ZttwzCommands(ZentralyDeviceCommands):
             if attribute_id == self.BOILER_ON_ATTRIBUTE_ID:
                 return (
                     BinarySensorCapability.BOILER_ON,
-                    self._parse_binary_value(
-                        value,
-                        "boiler state",
-                    ),
+                    ZentralyCommonCommands.parse_on_off_level(value),
                 )
 
         if cluster == self.THERMOSTAT_CLUSTER:
@@ -701,12 +698,13 @@ class ZttwzCommands(ZentralyDeviceCommands):
     ) -> bool:
         """Parse whether the boiler is on."""
 
-        return self._parse_read_binary_response(
+        raw_value = self._parse_read_integer_response(
             response,
             expected_rid,
             self.BOILER_ON_ATTRIBUTE_ID,
-            "boiler state",
         )
+
+        return ZentralyCommonCommands.parse_on_off_level(raw_value)
 
     def build_read_local_temperature(
         self,
@@ -1202,14 +1200,16 @@ class ZttwzCommands(ZentralyDeviceCommands):
         self,
         response: dict[str, Any],
         expected_rid: int,
-    ) -> int:
+    ) -> float:
         """Parse the OpenTherm CH setpoint."""
 
-        return self._parse_read_integer_response(
+        raw_value = self._parse_read_integer_response(
             response,
             expected_rid,
             self.CH_SETPOINT_ATTRIBUTE_ID,
         )
+
+        return raw_value / 100
 
     def build_reset_boiler(
         self,
@@ -1426,14 +1426,16 @@ class ZttwzCommands(ZentralyDeviceCommands):
         self,
         response: dict[str, Any],
         expected_rid: int,
-    ) -> int:
+    ) -> float:
         """Parse the OpenTherm DHW setpoint."""
 
-        return self._parse_read_integer_response(
+        raw_value = self._parse_read_integer_response(
             response,
             expected_rid,
             self.DHW_SETPOINT_ATTRIBUTE_ID,
         )
+
+        return raw_value / 100
 
     def build_read_output_type(
         self,

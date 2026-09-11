@@ -89,15 +89,6 @@ class ZtreaCommands(ZentralyDeviceCommands):
     MAC_ATTRIBUTE_TYPE = DataType.CHAR_STRING
 
     #
-    # Boiler state
-    #
-
-    BOILER_STATE_CLUSTER = 65006
-
-    BOILER_ON_ATTRIBUTE_ID = 0
-    BOILER_ON_ATTRIBUTE_TYPE = DataType.INT16
-
-    #
     # Thermostat cluster
     #
 
@@ -587,42 +578,6 @@ class ZtreaCommands(ZentralyDeviceCommands):
             response,
             expected_rid,
             self.WIFI_SIGNAL_POWER_ATTRIBUTE_ID,
-        )
-
-    #
-    # Boiler state - R
-    #
-    # Implemented at command level, but intentionally has no capability
-    # and does not currently generate a Home Assistant entity.
-    #
-
-    def build_read_boiler_on(
-        self,
-        rid: int,
-        mac: str,
-    ) -> dict[str, Any]:
-        """Build the boiler-state read command."""
-
-        return self._build_read_attribute(
-            rid=rid,
-            mac=mac,
-            cluster=self.BOILER_STATE_CLUSTER,
-            attribute_id=self.BOILER_ON_ATTRIBUTE_ID,
-            data_type=self.BOILER_ON_ATTRIBUTE_TYPE,
-        )
-
-    def parse_boiler_on_response(
-        self,
-        response: dict[str, Any],
-        expected_rid: int,
-    ) -> bool:
-        """Parse whether the boiler state is on."""
-
-        return self._parse_read_binary_response(
-            response,
-            expected_rid,
-            self.BOILER_ON_ATTRIBUTE_ID,
-            "boiler state",
         )
 
     #

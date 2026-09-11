@@ -17,6 +17,54 @@ from homeassistant.components.zentraly.sensor import ZentralySensor
 from homeassistant.const import UnitOfVolumeFlowRate
 
 
+@pytest.mark.parametrize("model", ["ZTBIN", "ZTTWZ"])
+@pytest.mark.parametrize(
+    ("capability", "attribute_id", "expected"),
+    [
+        pytest.param(SensorCapability.CH_SETPOINT, 1, 20.5, id="ch-setpoint"),
+        pytest.param(SensorCapability.DHW_SETPOINT, 56, 20.5, id="dhw-setpoint"),
+        pytest.param(SensorCapability.MODULATION_LEVEL, 17, 2050, id="modulation"),
+        pytest.param(SensorCapability.CH_WATER_PRESSURE, 18, 2050, id="pressure"),
+        pytest.param(SensorCapability.DHW_FLOW_RATE, 19, 2050, id="flow"),
+        pytest.param(SensorCapability.FEED_TEMPERATURE, 25, 2050, id="feed"),
+        pytest.param(SensorCapability.DHW_TEMPERATURE, 26, 2050, id="dhw"),
+    ],
+)
+async def test_opentherm_measurement_scale(
+    model: str,
+    capability: SensorCapability,
+    attribute_id: int,
+    expected: float,
+) -> None:
+    """Convert setpoints to Celsius while preserving unscaled measurements."""
+    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api._set_connected(True)
+    device = create_device(api, f"{model}0100000001", "bb")
+    device.set_output_type(ZentralyOutputType.OPENTHERM)
+    entity = ZentralySensor(
+        device=device,
+        sensor_api=ZentralySensorApi(device),
+        capability=capability,
+    )
+
+    with patch.object(
+        api,
+        "async_execute_command",
+        return_value=(
+            1,
+            {
+                "cmd": "readAttr",
+                "rid": 1,
+                "status": 200,
+                "attrs": [{"id": attribute_id, "val": 2050}],
+            },
+        ),
+    ):
+        await entity.async_update()
+
+    assert entity.native_value == expected
+
+
 async def test_flow_rate(platform_device: MagicMock) -> None:
     """Expose the measured flow using Home Assistant's standard unit."""
     api = MagicMock(spec=ZentralySensorApi)

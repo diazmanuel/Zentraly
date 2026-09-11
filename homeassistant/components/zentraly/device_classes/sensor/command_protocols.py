@@ -145,7 +145,7 @@ class ChSetpointCommands(Protocol):
         self,
         response: dict[str, Any],
         expected_rid: int,
-    ) -> int:
+    ) -> float:
         """Parse the central heating setpoint response."""
 
 
@@ -253,5 +253,5 @@ class DhwSetpointCommands(Protocol):
         self,
         response: dict[str, Any],
         expected_rid: int,
-    ) -> int:
+    ) -> float:
         """Parse the domestic hot water setpoint response."""
