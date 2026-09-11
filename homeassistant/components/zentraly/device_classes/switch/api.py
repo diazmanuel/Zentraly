@@ -16,6 +16,7 @@ from .command_protocols import (
     LowVoltageProtectionCommands,
     PowerCommands,
     ReturnToCronoCommands,
+    TimerOffEnableCommands,
 )
 
 if TYPE_CHECKING:
@@ -38,10 +39,12 @@ _OPENTHERM_CAPABILITIES = frozenset(
 class ZentralySwitchApi:
     """High-level API for Zentraly switch devices."""
 
-    def __init__(self, device: ZentralyDevice) -> None:
+    def __init__(self, device: ZentralyDevice, *, endpoint: int = 1) -> None:
         """Initialize the switch API."""
 
         self._device = device
+        self._endpoint = endpoint
+        self._commands = device.commands.for_endpoint(endpoint)
 
         self._state_listeners: set[SwitchStateListener] = set()
         self._remove_report_listener: Callable[[], None] | None = None
@@ -96,7 +99,7 @@ class ZentralySwitchApi:
         """Parse and dispatch switch updates from a device report."""
 
         parser = getattr(
-            self._device.commands,
+            self._commands,
             "parse_report_entry",
             None,
         )
@@ -107,6 +110,8 @@ class ZentralySwitchApi:
         updates: SwitchStateUpdate = {}
 
         for entry in report_data:
+            if entry.get("ep") != self._endpoint:
+                continue
             try:
                 result = parser(entry)
 
@@ -232,7 +237,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             PowerCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -249,15 +254,21 @@ class ZentralySwitchApi:
 
         commands = cast(
             PowerCommands,
-            self._device.commands,
+            self._commands,
         )
 
-        return await self._async_set_switch_value(
+        success = await self._async_set_switch_value(
             capability=SwitchCapability.POWER,
             builder=commands.build_write_power_state,
             parser=commands.parse_write_power_state_response,
             enabled=enabled,
         )
+
+        if self._commands.power_state_updates:
+            self._device.notify_action_state(
+                self._endpoint, self._commands.power_state_updates
+            )
+        return success
 
     async def async_get_child_lock(
         self,
@@ -266,7 +277,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             ChildLockCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -283,7 +294,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             ChildLockCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
@@ -300,7 +311,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             AlwaysOnDisplayCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -317,7 +328,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             AlwaysOnDisplayCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
@@ -334,7 +345,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             AlwaysOnLedCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -351,7 +362,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             AlwaysOnLedCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
@@ -368,7 +379,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             ComfortModeCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -385,7 +396,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             ComfortModeCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
@@ -402,7 +413,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             ForcedModeCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -419,7 +430,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             ForcedModeCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
@@ -436,7 +447,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             ReturnToCronoCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -453,7 +464,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             ReturnToCronoCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
@@ -470,7 +481,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             HighVoltageProtectionCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -487,7 +498,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             HighVoltageProtectionCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
@@ -504,7 +515,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             LowVoltageProtectionCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -521,7 +532,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             LowVoltageProtectionCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
@@ -538,7 +549,7 @@ class ZentralySwitchApi:
 
         commands = cast(
             HighPowerProtectionCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_get_switch_value(
@@ -555,12 +566,46 @@ class ZentralySwitchApi:
 
         commands = cast(
             HighPowerProtectionCommands,
-            self._device.commands,
+            self._commands,
         )
 
         return await self._async_set_switch_value(
             capability=SwitchCapability.HIGH_POWER_PROTECTION,
             builder=commands.build_write_high_power_protection,
             parser=commands.parse_write_high_power_protection_response,
+            enabled=enabled,
+        )
+
+    async def async_get_timer_off_enable(
+        self,
+    ) -> bool | None:
+        """Return the automatic-shut-off-enable state."""
+
+        commands = cast(
+            TimerOffEnableCommands,
+            self._commands,
+        )
+
+        return await self._async_get_switch_value(
+            capability=SwitchCapability.TIMER_OFF_ENABLE,
+            builder=commands.build_read_timer_off_enable,
+            parser=commands.parse_timer_off_enable_response,
+        )
+
+    async def async_set_timer_off_enable(
+        self,
+        enabled: bool,
+    ) -> bool:
+        """Set the automatic-shut-off-enable state."""
+
+        commands = cast(
+            TimerOffEnableCommands,
+            self._commands,
+        )
+
+        return await self._async_set_switch_value(
+            capability=SwitchCapability.TIMER_OFF_ENABLE,
+            builder=commands.build_write_timer_off_enable,
+            parser=commands.parse_write_timer_off_enable_response,
             enabled=enabled,
         )

@@ -18,13 +18,16 @@ type SelectStateListener = Callable[[SelectStateUpdate], None]
 class ZentralySelectApi:
     """High-level API for Zentraly select devices."""
 
-    def __init__(self, device: ZentralyDevice) -> None:
+    def __init__(self, device: ZentralyDevice, *, endpoint: int = 1) -> None:
         """Initialize the select API."""
 
         self._device = device
+        self._endpoint = endpoint
+        self._commands = device.commands.for_endpoint(endpoint)
 
         self._state_listeners: set[SelectStateListener] = set()
         self._remove_report_listener: Callable[[], None] | None = None
+        self._remove_action_listener: Callable[[], None] | None = None
 
     @property
     def device(self) -> ZentralyDevice:
@@ -47,7 +50,7 @@ class ZentralySelectApi:
         """Return all states supported by a select capability."""
 
         options = getattr(
-            self._device.commands,
+            self._commands,
             "select_options",
             None,
         )
@@ -74,7 +77,7 @@ class ZentralySelectApi:
         """Return options that may be selected manually."""
 
         options = getattr(
-            self._device.commands,
+            self._commands,
             "select_writable_options",
             None,
         )
@@ -116,6 +119,12 @@ class ZentralySelectApi:
                 self._handle_report
             )
 
+        if self._remove_action_listener is None:
+            self._remove_action_listener = self._device.add_action_state_listener(
+                self._endpoint,
+                self._handle_action_state,
+            )
+
         def remove_listener() -> None:
             """Remove the select state listener."""
 
@@ -129,8 +138,18 @@ class ZentralySelectApi:
 
             self._remove_report_listener()
             self._remove_report_listener = None
+            if self._remove_action_listener is not None:
+                self._remove_action_listener()
+                self._remove_action_listener = None
 
         return remove_listener
+
+    def _handle_action_state(self, updates: dict[object, Any]) -> None:
+        """Apply confirmed mode changes caused by another capability."""
+        mode = updates.get(SelectCapability.OPERATION_MODE)
+        if isinstance(mode, SelectOperationMode):
+            for listener in tuple(self._state_listeners):
+                listener({SelectCapability.OPERATION_MODE: mode})
 
     def _handle_report(
         self,
@@ -139,7 +158,7 @@ class ZentralySelectApi:
         """Parse and dispatch select updates from a device report."""
 
         parser = getattr(
-            self._device.commands,
+            self._commands,
             "parse_report_entry",
             None,
         )
@@ -150,6 +169,8 @@ class ZentralySelectApi:
         updates: SelectStateUpdate = {}
 
         for entry in report_data:
+            if entry.get("ep") != self._endpoint:
+                continue
             try:
                 result = parser(entry)
 
@@ -188,7 +209,7 @@ class ZentralySelectApi:
 
         commands = cast(
             OperationModeCommands,
-            self._device.commands,
+            self._commands,
         )
 
         result = await self._device.async_execute_command(
@@ -234,7 +255,7 @@ class ZentralySelectApi:
 
         commands = cast(
             OperationModeCommands,
-            self._device.commands,
+            self._commands,
         )
 
         result = await self._device.async_execute_action_command(

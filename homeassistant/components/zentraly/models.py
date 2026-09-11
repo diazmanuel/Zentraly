@@ -25,6 +25,8 @@ from .exceptions import (
 
 _LOGGER = logging.getLogger(__name__)
 
+type ActionStateListener = Callable[[dict[object, Any]], None]
+
 
 @dataclass(slots=True)
 class ZentralyDevice:
@@ -41,6 +43,9 @@ class ZentralyDevice:
     firmware_version: str | None = None
     hardware_version: str | None = None
     _responding: bool = field(default=True, init=False)
+    _action_state_listeners: dict[int, set[ActionStateListener]] = field(
+        default_factory=dict, init=False
+    )
     _state_listeners: set[Callable[[], None]] = field(default_factory=set, init=False)
     _report_listeners: set[ReportListener] = field(default_factory=set, init=False)
     _remove_report_listener: Callable[[], None] | None = field(default=None, init=False)
@@ -111,25 +116,56 @@ class ZentralyDevice:
 
     def _handle_report(self, report_data: list[dict[str, Any]]) -> None:
         """Apply shared state before dispatching capability updates."""
-        parser = getattr(self.commands, "parse_report_entry", None)
-        if callable(parser):
-            for entry in report_data:
-                try:
-                    result = parser(entry)
-                except TypeError, ValueError:
-                    continue
-                if result is None:
-                    continue
-                capability, value = result
-                if not self.supports(capability):
-                    continue
-                self._set_responding(True)
-                if capability is SensorCapability.OUTPUT_TYPE and isinstance(
-                    value, ZentralyOutputType
-                ):
-                    self.set_output_type(value)
+        for entry in report_data:
+            endpoint = entry.get("ep")
+            if (
+                type(endpoint) is not int
+                or endpoint not in self.commands.channel_endpoints
+            ):
+                continue
+            parser = getattr(
+                self.commands.for_endpoint(endpoint), "parse_report_entry", None
+            )
+            if not callable(parser):
+                continue
+            try:
+                result = parser(entry)
+            except TypeError, ValueError:
+                continue
+            if result is None:
+                continue
+            capability, value = result
+            if not self.supports(capability):
+                continue
+            self._set_responding(True)
+            if capability is SensorCapability.OUTPUT_TYPE and isinstance(
+                value, ZentralyOutputType
+            ):
+                self.set_output_type(value)
         for listener in tuple(self._report_listeners):
             listener(report_data)
+
+    def add_action_state_listener(
+        self,
+        endpoint: int,
+        listener: ActionStateListener,
+    ) -> Callable[[], None]:
+        """Subscribe to confirmed action effects on a channel."""
+        self._action_state_listeners.setdefault(endpoint, set()).add(listener)
+
+        def remove_listener() -> None:
+            listeners = self._action_state_listeners.get(endpoint)
+            if listeners is not None:
+                listeners.discard(listener)
+                if not listeners:
+                    del self._action_state_listeners[endpoint]
+
+        return remove_listener
+
+    def notify_action_state(self, endpoint: int, updates: dict[object, Any]) -> None:
+        """Publish model-defined effects only after a successful action."""
+        for listener in tuple(self._action_state_listeners.get(endpoint, ())):
+            listener(updates)
 
     @property
     def connected(self) -> bool:

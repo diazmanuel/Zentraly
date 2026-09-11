@@ -204,6 +204,8 @@ def _parent_entry(
     [
         (DEVICE_ID, MAC),
         (ZTEIM_DEVICE_ID, ZTEIM_MAC),
+        pytest.param("ZTIKD0100000001", MAC, id="kinetic-dual"),
+        pytest.param("ZTIKS0100000001", MAC, id="kinetic-single"),
     ],
 )
 async def test_zeroconf_auth_success(

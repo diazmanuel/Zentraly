@@ -96,11 +96,26 @@
       },
       "timer": {
         "name": "Timer"
+      },
+      "timer_off": {
+        "name": "Automatic shut-off duration"
+      },
+      "timer_off_channel": {
+        "name": "Automatic shut-off duration channel {channel}"
       }
     },
     "select": {
       "operation_mode": {
         "name": "Operation mode",
+        "state": {
+          "auto": "Auto",
+          "manual": "Manual",
+          "off": "Off",
+          "timer": "Timer"
+        }
+      },
+      "operation_mode_channel": {
+        "name": "Operation mode channel {channel}",
         "state": {
           "auto": "Auto",
           "manual": "Manual",
@@ -188,8 +203,20 @@
       "power": {
         "name": "Power"
       },
+      "power_channel": {
+        "name": "Power channel {channel}"
+      },
       "return_to_crono": {
         "name": "Return to schedule"
+      },
+      "return_to_crono_channel": {
+        "name": "Return to schedule channel {channel}"
+      },
+      "timer_off_enable": {
+        "name": "Automatic shut-off"
+      },
+      "timer_off_enable_channel": {
+        "name": "Automatic shut-off channel {channel}"
       }
     }
   },

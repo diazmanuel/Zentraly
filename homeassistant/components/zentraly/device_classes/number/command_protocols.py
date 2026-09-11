@@ -140,3 +140,36 @@ class HighPowerLimitCommands(Protocol):
         expected_rid: int,
     ) -> None:
         """Parse the high-power-limit write response."""
+
+
+class TimerOffCommands(Protocol):
+    """Commands for devices supporting a configured automatic shut-off duration."""
+
+    def build_read_timer_off(
+        self,
+        rid: int,
+        mac: str,
+    ) -> dict[str, Any]:
+        """Build the automatic-shut-off-duration read command."""
+
+    def parse_timer_off_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> float:
+        """Parse the automatic-shut-off-duration response."""
+
+    def build_write_timer_off(
+        self,
+        rid: int,
+        mac: str,
+        value: float,
+    ) -> dict[str, Any]:
+        """Build the automatic-shut-off-duration write command."""
+
+    def parse_write_timer_off_response(
+        self,
+        response: dict[str, Any],
+        expected_rid: int,
+    ) -> None:
+        """Parse the automatic-shut-off-duration write response."""
