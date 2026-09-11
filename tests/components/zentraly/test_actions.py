@@ -83,16 +83,11 @@ type Action = Callable[[ZentralyDevice], Coroutine[Any, Any, bool]]
 @pytest.mark.parametrize(
     ("response", "error"),
     [
-        pytest.param(None, ZentralyConnectionError, id="timeout"),
-        pytest.param((1, {"status": 400}), ZentralyCommandRejectedError, id="rejected"),
-        pytest.param((1, {}), ZentralyInvalidResponseError, id="missing-status"),
-        pytest.param(
-            (1, {"status": "200"}), ZentralyInvalidResponseError, id="invalid-status"
-        ),
+        pytest.param(None, ZentralyConnectionError, id="transport-error"),
         pytest.param(
             (1, {"status": 200, "cmd": "unexpected", "rid": 1}),
             ZentralyInvalidResponseError,
-            id="invalid-payload",
+            id="platform-parser-error",
         ),
     ],
 )
@@ -108,6 +103,31 @@ async def test_capability_action_errors(
     device = create_device(api, device_id, "aabbccddeeff")
     with pytest.raises(error):
         await action(device)
+
+
+@pytest.mark.parametrize(
+    ("response", "error"),
+    [
+        pytest.param(None, ZentralyConnectionError, id="timeout"),
+        pytest.param((1, {"status": 400}), ZentralyCommandRejectedError, id="rejected"),
+        pytest.param((1, {}), ZentralyInvalidResponseError, id="missing-status"),
+        pytest.param(
+            (1, {"status": "200"}), ZentralyInvalidResponseError, id="invalid-status"
+        ),
+    ],
+)
+async def test_shared_action_errors(
+    response: tuple[int, dict[str, Any]] | None,
+    error: type[ZentralyApiError],
+) -> None:
+    """Classify transport and status errors once at the shared execution boundary."""
+    api = MagicMock(spec=ZentralyApi)
+    api.async_execute_command.return_value = response
+    device = create_device(api, "ZTEIM0100000001", "aabbccddeeff")
+    with pytest.raises(error):
+        await device.async_execute_action_command(
+            lambda rid: {"cmd": "zclCmd", "rid": rid}
+        )
 
 
 @pytest.mark.parametrize(
