@@ -43,6 +43,9 @@ class ZentralyDevice:
     firmware_version: str | None = None
     hardware_version: str | None = None
     _responding: bool = field(default=True, init=False)
+    _switch_states: dict[tuple[int, object], bool | None] = field(
+        default_factory=dict, init=False
+    )
     _action_state_listeners: dict[int, set[ActionStateListener]] = field(
         default_factory=dict, init=False
     )
@@ -54,6 +57,26 @@ class ZentralyDevice:
     def available(self) -> bool:
         """Return whether the gateway and this device can communicate."""
         return self.connected and self._responding
+
+    def capability_enabled(self, capability: object, *, endpoint: int = 1) -> bool:
+        """Evaluate the model's switch dependency for a control."""
+        dependency = self.commands.capability_dependencies.get(capability)
+        return (
+            dependency is None
+            or self._switch_states.get((endpoint, dependency)) is True
+        )
+
+    def set_switch_state(
+        self, capability: object, value: bool | None, *, endpoint: int = 1
+    ) -> None:
+        """Notify controls when a switch they depend on changes."""
+        if capability not in self.commands.capability_dependencies.values():
+            return
+        key = (endpoint, capability)
+        if self._switch_states.get(key) is value:
+            return
+        self._switch_states[key] = value
+        self._notify_state()
 
     def set_output_type(self, value: ZentralyOutputType) -> None:
         """Update shared output state and notify dependent entities."""
@@ -136,6 +159,8 @@ class ZentralyDevice:
                 if not self.supports(capability):
                     continue
                 self._set_responding(True)
+                if isinstance(value, bool):
+                    self.set_switch_state(capability, value, endpoint=endpoint)
                 if capability is SensorCapability.OUTPUT_TYPE and isinstance(
                     value, ZentralyOutputType
                 ):

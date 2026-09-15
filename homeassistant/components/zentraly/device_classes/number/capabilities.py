@@ -12,3 +12,7 @@ class NumberCapability(Enum):
     LOW_VOLTAGE_LIMIT = "low_voltage_limit"
     HIGH_POWER_LIMIT = "high_power_limit"
     TIMER_OFF = "timer_off"
+
+    AWAY_TEMPERATURE = "away_temperature"
+    TEMPERATURE_OFFSET = "temperature_offset"
+    DISPLAY_BRIGHTNESS = "display_brightness"

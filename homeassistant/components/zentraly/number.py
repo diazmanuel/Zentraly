@@ -6,9 +6,11 @@ from typing import Any, override
 
 from homeassistant.components.number import NumberEntity
 from homeassistant.const import (
+    PERCENTAGE,
     EntityCategory,
     UnitOfElectricPotential,
     UnitOfPower,
+    UnitOfTemperature,
     UnitOfTime,
 )
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
@@ -34,6 +36,9 @@ _LOGGER = logging.getLogger(__name__)
 
 _CONFIG_CAPABILITIES = frozenset(
     {
+        NumberCapability.AWAY_TEMPERATURE,
+        NumberCapability.TEMPERATURE_OFFSET,
+        NumberCapability.DISPLAY_BRIGHTNESS,
         NumberCapability.TIMER,
         NumberCapability.TIMER_OFF,
         NumberCapability.HIGH_VOLTAGE_LIMIT,
@@ -116,6 +121,7 @@ class ZentralyNumber(NumberEntity):
         self._device = device
         self._number_api = number_api
         self._capability = capability
+        self._endpoint = channel if channel is not None else 1
 
         self._cancel_timer_write: CALLBACK_TYPE | None = None
         self._pending_timer_value: float | None = None
@@ -140,7 +146,16 @@ class ZentralyNumber(NumberEntity):
         if capability in _CONFIG_CAPABILITIES:
             self._attr_entity_category = EntityCategory.CONFIG
 
-        if capability in (NumberCapability.TIMER, NumberCapability.TIMER_OFF):
+        if capability in (
+            NumberCapability.AWAY_TEMPERATURE,
+            NumberCapability.TEMPERATURE_OFFSET,
+        ):
+            self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+
+        elif capability is NumberCapability.DISPLAY_BRIGHTNESS:
+            self._attr_native_unit_of_measurement = PERCENTAGE
+
+        elif capability in (NumberCapability.TIMER, NumberCapability.TIMER_OFF):
             self._attr_native_unit_of_measurement = UnitOfTime.MINUTES
 
         elif capability in (
@@ -246,7 +261,13 @@ class ZentralyNumber(NumberEntity):
     @override
     def available(self) -> bool:
         """Return availability independently of a missing attribute value."""
-        return self._device.available and self._device.connected
+        return (
+            self._device.available
+            and self._device.connected
+            and self._device.capability_enabled(
+                self._capability, endpoint=self._endpoint
+            )
+        )
 
     def _handle_connection_state(
         self,
@@ -314,6 +335,15 @@ class ZentralyNumber(NumberEntity):
         elif self._capability is NumberCapability.TIMER_OFF:
             value = await self._number_api.async_get_timer_off()
 
+        elif self._capability is NumberCapability.AWAY_TEMPERATURE:
+            value = await self._number_api.async_get_away_temperature()
+
+        elif self._capability is NumberCapability.TEMPERATURE_OFFSET:
+            value = await self._number_api.async_get_temperature_offset()
+
+        elif self._capability is NumberCapability.DISPLAY_BRIGHTNESS:
+            value = await self._number_api.async_get_display_brightness()
+
         elif self._capability is NumberCapability.HIGH_VOLTAGE_LIMIT:
             value = await self._number_api.async_get_high_voltage_limit()
 
@@ -358,6 +388,15 @@ class ZentralyNumber(NumberEntity):
 
         if self._capability is NumberCapability.TIMER_OFF:
             success = await self._number_api.async_set_timer_off(value)
+
+        elif self._capability is NumberCapability.AWAY_TEMPERATURE:
+            success = await self._number_api.async_set_away_temperature(value)
+
+        elif self._capability is NumberCapability.TEMPERATURE_OFFSET:
+            success = await self._number_api.async_set_temperature_offset(value)
+
+        elif self._capability is NumberCapability.DISPLAY_BRIGHTNESS:
+            success = await self._number_api.async_set_display_brightness(value)
 
         elif self._capability is NumberCapability.HIGH_VOLTAGE_LIMIT:
             success = await self._number_api.async_set_high_voltage_limit(value)

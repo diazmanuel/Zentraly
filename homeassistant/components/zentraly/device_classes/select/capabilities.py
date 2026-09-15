@@ -7,3 +7,5 @@ class SelectCapability(Enum):
     """Supported Zentraly select capabilities."""
 
     OPERATION_MODE = "operation_mode"
+
+    DISPLAY_MODE = "display_mode"
