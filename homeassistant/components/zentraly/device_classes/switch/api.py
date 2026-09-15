@@ -168,6 +168,7 @@ class ZentralySwitchApi:
         )
 
         if result is None:
+            self._device.set_switch_state(capability, None, endpoint=self._endpoint)
             return None
 
         rid, response = result
@@ -179,11 +180,14 @@ class ZentralySwitchApi:
             )
 
         except TypeError, ValueError:
+            self._device.set_switch_state(capability, None, endpoint=self._endpoint)
             return None
 
         if not isinstance(value, bool):
+            self._device.set_switch_state(capability, None, endpoint=self._endpoint)
             return None
 
+        self._device.set_switch_state(capability, value, endpoint=self._endpoint)
         return value
 
     async def _async_set_switch_value(
@@ -224,6 +228,7 @@ class ZentralySwitchApi:
         except (TypeError, ValueError) as err:
             raise ZentralyInvalidResponseError("Invalid action response") from err
 
+        self._device.set_switch_state(capability, enabled, endpoint=self._endpoint)
         return True
 
     async def async_get_power(

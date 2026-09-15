@@ -173,3 +173,69 @@ class TimerOffCommands(Protocol):
         expected_rid: int,
     ) -> None:
         """Parse the automatic-shut-off-duration write response."""
+
+
+class AwayTemperatureCommands(Protocol):
+    """Commands for the away temperature setting."""
+
+    def build_read_away_temperature(self, rid: int, mac: str) -> dict[str, Any]:
+        """Build the setting read command."""
+
+    def parse_away_temperature_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> float:
+        """Decode the setting in its native unit."""
+
+    def build_write_away_temperature(
+        self, rid: int, mac: str, value: float
+    ) -> dict[str, Any]:
+        """Build the setting write command."""
+
+    def parse_write_away_temperature_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> None:
+        """Validate the setting write response."""
+
+
+class TemperatureOffsetCommands(Protocol):
+    """Commands for the temperature offset setting."""
+
+    def build_read_temperature_offset(self, rid: int, mac: str) -> dict[str, Any]:
+        """Build the setting read command."""
+
+    def parse_temperature_offset_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> float:
+        """Decode the setting in its native unit."""
+
+    def build_write_temperature_offset(
+        self, rid: int, mac: str, value: float
+    ) -> dict[str, Any]:
+        """Build the setting write command."""
+
+    def parse_write_temperature_offset_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> None:
+        """Validate the setting write response."""
+
+
+class DisplayBrightnessCommands(Protocol):
+    """Commands for the display brightness setting."""
+
+    def build_read_display_brightness(self, rid: int, mac: str) -> dict[str, Any]:
+        """Build the setting read command."""
+
+    def parse_display_brightness_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> float:
+        """Decode the setting in its native unit."""
+
+    def build_write_display_brightness(
+        self, rid: int, mac: str, value: float
+    ) -> dict[str, Any]:
+        """Build the setting write command."""
+
+    def parse_write_display_brightness_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> None:
+        """Validate the setting write response."""

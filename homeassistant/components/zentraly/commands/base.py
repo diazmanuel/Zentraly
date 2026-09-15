@@ -15,6 +15,7 @@ class ZentralyDeviceCommands:
 
     channel_endpoints: tuple[int, ...] = (1,)
     power_state_updates: dict[object, Any] = {}
+    capability_dependencies: dict[object, object] = {}
 
     def for_endpoint(self, endpoint: int) -> ZentralyDeviceCommands:
         """Return commands bound to a supported channel."""

@@ -85,6 +85,12 @@
       }
     },
     "number": {
+      "away_temperature": {
+        "name": "Away temperature"
+      },
+      "display_brightness": {
+        "name": "Display brightness"
+      },
       "high_power_limit": {
         "name": "High power limit"
       },
@@ -93,6 +99,9 @@
       },
       "low_voltage_limit": {
         "name": "Low voltage limit"
+      },
+      "temperature_offset": {
+        "name": "Temperature correction"
       },
       "timer": {
         "name": "Timer"
@@ -105,6 +114,13 @@
       }
     },
     "select": {
+      "display_mode": {
+        "name": "Display selection",
+        "state": {
+          "temperature": "Temperature",
+          "time": "Time"
+        }
+      },
       "operation_mode": {
         "name": "Operation mode",
         "state": {

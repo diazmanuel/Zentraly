@@ -2,7 +2,7 @@
 
 from typing import Any, Protocol
 
-from ..types import SelectOperationMode
+from ..types import DisplayMode, SelectOperationMode
 
 
 class OperationModeCommands(Protocol):
@@ -36,3 +36,25 @@ class OperationModeCommands(Protocol):
         expected_rid: int,
     ) -> None:
         """Parse the operation-mode write response."""
+
+
+class DisplayModeCommands(Protocol):
+    """Commands for choosing the information shown on a display."""
+
+    def build_read_display_mode(self, rid: int, mac: str) -> dict[str, Any]:
+        """Build a display-mode read."""
+
+    def parse_display_mode_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> DisplayMode:
+        """Decode the display mode."""
+
+    def build_write_display_mode(
+        self, rid: int, mac: str, mode: DisplayMode
+    ) -> dict[str, Any]:
+        """Build a display-mode write."""
+
+    def parse_write_display_mode_response(
+        self, response: dict[str, Any], expected_rid: int
+    ) -> None:
+        """Validate a display-mode write."""

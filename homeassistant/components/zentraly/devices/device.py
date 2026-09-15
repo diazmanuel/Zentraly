@@ -72,6 +72,8 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
                 Platform.BINARY_SENSOR,
                 Platform.BUTTON,
                 Platform.CLIMATE,
+                Platform.NUMBER,
+                Platform.SELECT,
                 Platform.SENSOR,
                 Platform.SWITCH,
             }

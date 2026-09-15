@@ -26,3 +26,10 @@ class SelectOperationMode(Enum):
     MANUAL = "manual"
     AUTO = "auto"
     TIMER = "timer"
+
+
+class DisplayMode(Enum):
+    """Information shown on a device display."""
+
+    TEMPERATURE = "temperature"
+    TIME = "time"

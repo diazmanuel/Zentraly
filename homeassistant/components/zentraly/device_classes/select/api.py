@@ -4,9 +4,9 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
-from ..types import SelectOperationMode
+from ..types import DisplayMode, SelectOperationMode
 from .capabilities import SelectCapability
-from .command_protocols import OperationModeCommands
+from .command_protocols import DisplayModeCommands, OperationModeCommands
 
 if TYPE_CHECKING:
     from ...models import ZentralyDevice
@@ -46,7 +46,7 @@ class ZentralySelectApi:
     def get_options(
         self,
         capability: SelectCapability,
-    ) -> tuple[SelectOperationMode, ...]:
+    ) -> tuple[SelectOperationMode | DisplayMode, ...]:
         """Return all states supported by a select capability."""
 
         options = getattr(
@@ -64,7 +64,8 @@ class ZentralySelectApi:
             return ()
 
         if not all(
-            isinstance(option, SelectOperationMode) for option in capability_options
+            isinstance(option, SelectOperationMode | DisplayMode)
+            for option in capability_options
         ):
             return ()
 
@@ -73,7 +74,7 @@ class ZentralySelectApi:
     def get_writable_options(
         self,
         capability: SelectCapability,
-    ) -> tuple[SelectOperationMode, ...]:
+    ) -> tuple[SelectOperationMode | DisplayMode, ...]:
         """Return options that may be selected manually."""
 
         options = getattr(
@@ -91,7 +92,8 @@ class ZentralySelectApi:
             return ()
 
         if not all(
-            isinstance(option, SelectOperationMode) for option in capability_options
+            isinstance(option, SelectOperationMode | DisplayMode)
+            for option in capability_options
         ):
             return ()
 
@@ -100,7 +102,7 @@ class ZentralySelectApi:
     def is_option_writable(
         self,
         capability: SelectCapability,
-        option: SelectOperationMode,
+        option: SelectOperationMode | DisplayMode,
     ) -> bool:
         """Return whether an option may be selected manually."""
 
@@ -184,7 +186,7 @@ class ZentralySelectApi:
                 if not self.supports(capability):
                     continue
 
-                if not isinstance(value, SelectOperationMode):
+                if value not in self.get_options(capability):
                     continue
 
                 updates[capability] = value
@@ -266,6 +268,86 @@ class ZentralySelectApi:
 
         try:
             commands.parse_write_operation_mode_response(
+                response,
+                rid,
+            )
+
+        except (TypeError, ValueError) as err:
+            raise ZentralyInvalidResponseError("Invalid action response") from err
+
+        return True
+
+    async def async_get_display_mode(
+        self,
+    ) -> DisplayMode | None:
+        """Return the current display mode."""
+
+        if not self.supports(SelectCapability.DISPLAY_MODE):
+            return None
+
+        commands = cast(
+            DisplayModeCommands,
+            self._commands,
+        )
+
+        result = await self._device.async_execute_command(
+            lambda rid: commands.build_read_display_mode(
+                rid,
+                self._device.mac,
+            )
+        )
+
+        if result is None:
+            return None
+
+        rid, response = result
+
+        try:
+            value = commands.parse_display_mode_response(
+                response,
+                rid,
+            )
+
+        except TypeError, ValueError:
+            return None
+
+        if not isinstance(value, DisplayMode):
+            return None
+
+        return value
+
+    async def async_set_display_mode(
+        self,
+        mode: DisplayMode,
+    ) -> bool:
+        """Set a manually selectable display mode."""
+
+        if not self.supports(SelectCapability.DISPLAY_MODE):
+            raise ZentralyValidationError("Unsupported action")
+
+        if not self.is_option_writable(
+            SelectCapability.DISPLAY_MODE,
+            mode,
+        ):
+            raise ZentralyValidationError("Unsupported action")
+
+        commands = cast(
+            DisplayModeCommands,
+            self._commands,
+        )
+
+        result = await self._device.async_execute_action_command(
+            lambda rid: commands.build_write_display_mode(
+                rid,
+                self._device.mac,
+                mode,
+            )
+        )
+
+        rid, response = result
+
+        try:
+            commands.parse_write_display_mode_response(
                 response,
                 rid,
             )

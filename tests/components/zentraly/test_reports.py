@@ -256,7 +256,7 @@ async def test_channel_report_dispatch(hass: HomeAssistant) -> None:
 
 
 async def test_climate_away_report(hass: HomeAssistant) -> None:
-    """Away setpoints received by report update climate without polling."""
+    """Climate uses the reported target in away and ignores its configuration value."""
     api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
     api._set_connected(True)
     device = create_device(api, api.device_id, "aa")
@@ -270,7 +270,8 @@ async def test_climate_away_report(hass: HomeAssistant) -> None:
                 "cmd": "report",
                 "data": [
                     {"mac": "aa", "ep": 1, "cluster": 65513, "id": 28, "val": 3},
-                    {"mac": "aa", "ep": 1, "cluster": 65513, "id": 17, "val": 1800},
+                    {"mac": "aa", "ep": 1, "cluster": 65513, "id": 18, "val": 1800},
+                    {"mac": "aa", "ep": 1, "cluster": 65513, "id": 17, "val": 2500},
                 ],
             }
         )
@@ -287,5 +288,9 @@ async def test_climate_away_report(hass: HomeAssistant) -> None:
         assert entity.current_temperature == 21.0
         assert entity.target_temperature == 18.0
         execute.assert_not_awaited()
+        execute.return_value = None
+        with patch.object(entity._climate_api, "async_get_away_temperature") as away:
+            await entity.async_update()
+            away.assert_not_awaited()
         await entity.async_remove()
     assert api._report_listeners == {}

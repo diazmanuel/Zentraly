@@ -6,11 +6,14 @@ from typing import TYPE_CHECKING, Any, cast
 from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
 from .capabilities import NumberCapability
 from .command_protocols import (
+    AwayTemperatureCommands,
+    DisplayBrightnessCommands,
     HighPowerLimitCommands,
     HighVoltageLimitCommands,
     LowVoltageLimitCommands,
     NumberRange,
     NumberRangeCommands,
+    TemperatureOffsetCommands,
     TimerCommands,
     TimerOffCommands,
 )
@@ -381,5 +384,62 @@ class ZentralyNumberApi:
             capability=NumberCapability.TIMER_OFF,
             builder=commands.build_write_timer_off,
             parser=commands.parse_write_timer_off_response,
+            value=value,
+        )
+
+    async def async_get_away_temperature(self) -> float | None:
+        """Read the away temperature setting."""
+        commands = cast(AwayTemperatureCommands, self._commands)
+        return await self._async_get_number_value(
+            capability=NumberCapability.AWAY_TEMPERATURE,
+            builder=commands.build_read_away_temperature,
+            parser=commands.parse_away_temperature_response,
+        )
+
+    async def async_set_away_temperature(self, value: float) -> bool:
+        """Write the away temperature setting."""
+        commands = cast(AwayTemperatureCommands, self._commands)
+        return await self._async_set_number_value(
+            capability=NumberCapability.AWAY_TEMPERATURE,
+            builder=commands.build_write_away_temperature,
+            parser=commands.parse_write_away_temperature_response,
+            value=value,
+        )
+
+    async def async_get_temperature_offset(self) -> float | None:
+        """Read the temperature offset setting."""
+        commands = cast(TemperatureOffsetCommands, self._commands)
+        return await self._async_get_number_value(
+            capability=NumberCapability.TEMPERATURE_OFFSET,
+            builder=commands.build_read_temperature_offset,
+            parser=commands.parse_temperature_offset_response,
+        )
+
+    async def async_set_temperature_offset(self, value: float) -> bool:
+        """Write the temperature offset setting."""
+        commands = cast(TemperatureOffsetCommands, self._commands)
+        return await self._async_set_number_value(
+            capability=NumberCapability.TEMPERATURE_OFFSET,
+            builder=commands.build_write_temperature_offset,
+            parser=commands.parse_write_temperature_offset_response,
+            value=value,
+        )
+
+    async def async_get_display_brightness(self) -> float | None:
+        """Read the display brightness setting."""
+        commands = cast(DisplayBrightnessCommands, self._commands)
+        return await self._async_get_number_value(
+            capability=NumberCapability.DISPLAY_BRIGHTNESS,
+            builder=commands.build_read_display_brightness,
+            parser=commands.parse_display_brightness_response,
+        )
+
+    async def async_set_display_brightness(self, value: float) -> bool:
+        """Write the display brightness setting."""
+        commands = cast(DisplayBrightnessCommands, self._commands)
+        return await self._async_set_number_value(
+            capability=NumberCapability.DISPLAY_BRIGHTNESS,
+            builder=commands.build_write_display_brightness,
+            parser=commands.parse_write_display_brightness_response,
             value=value,
         )

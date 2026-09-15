@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, override
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -13,7 +14,7 @@ from .actions import translate_action_errors
 from .api import SCAN_INTERVAL
 from .device_classes.select.api import ZentralySelectApi
 from .device_classes.select.capabilities import SelectCapability
-from .device_classes.types import SelectOperationMode
+from .device_classes.types import DisplayMode, SelectOperationMode
 from .exceptions import (
     ZentralyApiError,
     ZentralyConnectionError,
@@ -97,6 +98,7 @@ class ZentralySelect(SelectEntity):
         self._device = device
         self._select_api = select_api
         self._capability = capability
+        self._endpoint = channel if channel is not None else 1
 
         self._attr_unique_id = f"{device.device_id}_{capability.value}"
         self._attr_translation_key = capability.value
@@ -104,6 +106,9 @@ class ZentralySelect(SelectEntity):
             self._attr_unique_id += f"_channel_{channel}"
             self._attr_translation_key += "_channel"
             self._attr_translation_placeholders = {"channel": str(channel)}
+
+        if capability is SelectCapability.DISPLAY_MODE:
+            self._attr_entity_category = EntityCategory.CONFIG
 
         self._attr_options = [
             option.value for option in select_api.get_options(capability)
@@ -146,7 +151,13 @@ class ZentralySelect(SelectEntity):
     @override
     def available(self) -> bool:
         """Return availability independently of a missing attribute value."""
-        return self._device.available and self._device.connected
+        return (
+            self._device.available
+            and self._device.connected
+            and self._device.capability_enabled(
+                self._capability, endpoint=self._endpoint
+            )
+        )
 
     def _handle_connection_state(
         self,
@@ -173,7 +184,7 @@ class ZentralySelect(SelectEntity):
 
         value = updates[self._capability]
 
-        if not isinstance(value, SelectOperationMode):
+        if value not in self._select_api.get_options(self._capability):
             return
 
         option = value.value
@@ -194,10 +205,13 @@ class ZentralySelect(SelectEntity):
         if not self._device.connected:
             return
 
-        if self._capability is not SelectCapability.OPERATION_MODE:
+        value: DisplayMode | SelectOperationMode | None
+        if self._capability is SelectCapability.DISPLAY_MODE:
+            value = await self._select_api.async_get_display_mode()
+        elif self._capability is SelectCapability.OPERATION_MODE:
+            value = await self._select_api.async_get_operation_mode()
+        else:
             return
-
-        value = await self._select_api.async_get_operation_mode()
 
         if value is None:
             self._attr_current_option = None
@@ -223,20 +237,29 @@ class ZentralySelect(SelectEntity):
             raise ZentralyConnectionError("Device disconnected")
 
         try:
-            mode = SelectOperationMode(option)
-
-        except ValueError as err:
+            value = next(
+                value
+                for value in self._select_api.get_options(self._capability)
+                if value.value == option
+            )
+        except StopIteration as err:
             raise ZentralyValidationError("Invalid option") from err
 
-        if self._capability is not SelectCapability.OPERATION_MODE:
-            return
-
-        success = await self._select_api.async_set_operation_mode(mode)
+        if self._capability is SelectCapability.DISPLAY_MODE and isinstance(
+            value, DisplayMode
+        ):
+            success = await self._select_api.async_set_display_mode(value)
+        elif self._capability is SelectCapability.OPERATION_MODE and isinstance(
+            value, SelectOperationMode
+        ):
+            success = await self._select_api.async_set_operation_mode(value)
+        else:
+            raise ZentralyValidationError("Unsupported action")
 
         if not success:
             raise ZentralyApiError("Action failed")
 
-        self._attr_current_option = mode.value
+        self._attr_current_option = value.value
         self.async_write_ha_state()
 
     @property

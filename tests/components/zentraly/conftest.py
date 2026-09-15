@@ -46,6 +46,7 @@ def platform_device() -> MagicMock:
     device = MagicMock(spec=ZentralyDevice)
     device.device_id = "ZTTIN0100000631"
     device.connected = True
+    device.capability_enabled.return_value = True
     device.opentherm_connected = True
     return device
 
