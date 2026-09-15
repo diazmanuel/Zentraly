@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from ...exceptions import ZentralyInvalidResponseError, ZentralyValidationError
-from ..types import ClimateOperationMode
+from ..types import ClimateConfiguration, ClimateOperationMode
 from .capabilities import ClimateCapability
 from .command_protocols import (
     AwayTemperatureCommands,
@@ -15,7 +15,6 @@ from .command_protocols import (
     OperationModeCommands,
     TargetTemperatureCommands,
 )
-from .configuration import ClimateConfiguration
 
 if TYPE_CHECKING:
     from ...models import ZentralyDevice

@@ -2,8 +2,7 @@
 
 from typing import Any, Protocol
 
-from ..types import ClimateOperationMode
-from .configuration import ClimateConfiguration
+from ..types import ClimateConfiguration, ClimateOperationMode
 
 
 class ClimateConfigurationCommands(Protocol):

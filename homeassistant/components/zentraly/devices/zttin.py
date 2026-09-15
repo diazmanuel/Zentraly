@@ -9,11 +9,14 @@ from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.button.capabilities import ButtonCapability
 from ..device_classes.climate.capabilities import ClimateCapability
-from ..device_classes.climate.configuration import ClimateConfiguration
 from ..device_classes.number.capabilities import NumberCapability
 from ..device_classes.select.capabilities import SelectCapability
 from ..device_classes.switch.capabilities import SwitchCapability
-from ..device_classes.types import ClimateOperationMode, DisplayMode
+from ..device_classes.types import (
+    ClimateConfiguration,
+    ClimateOperationMode,
+    DisplayMode,
+)
 
 
 class ZttinOperationMode(IntEnum):

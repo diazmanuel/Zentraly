@@ -10,12 +10,16 @@ from ..commands.protocol import DataType
 from ..device_classes.binary_sensor.capabilities import BinarySensorCapability
 from ..device_classes.button.capabilities import ButtonCapability
 from ..device_classes.climate.capabilities import ClimateCapability
-from ..device_classes.climate.configuration import ClimateConfiguration
 from ..device_classes.number.capabilities import NumberCapability
 from ..device_classes.select.capabilities import SelectCapability
 from ..device_classes.sensor.capabilities import SensorCapability
 from ..device_classes.switch.capabilities import SwitchCapability
-from ..device_classes.types import ClimateOperationMode, DisplayMode, ZentralyOutputType
+from ..device_classes.types import (
+    ClimateConfiguration,
+    ClimateOperationMode,
+    DisplayMode,
+    ZentralyOutputType,
+)
 
 
 class ZttwzOperationMode(IntEnum):
