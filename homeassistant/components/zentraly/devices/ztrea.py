@@ -8,10 +8,9 @@ from ..commands.common import ZentralyCommonCommands
 from ..commands.protocol import DataType
 from ..device_classes.button.capabilities import ButtonCapability
 from ..device_classes.climate.capabilities import ClimateCapability
-from ..device_classes.climate.configuration import ClimateConfiguration
 from ..device_classes.sensor.capabilities import SensorCapability
 from ..device_classes.switch.capabilities import SwitchCapability
-from ..device_classes.types import ClimateOperationMode
+from ..device_classes.types import ClimateConfiguration, ClimateOperationMode
 
 
 class ZtreaOperationMode(IntEnum):

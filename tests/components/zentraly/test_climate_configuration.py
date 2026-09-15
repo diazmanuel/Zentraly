@@ -21,10 +21,10 @@ from homeassistant.components.zentraly.device_classes.climate.command_protocols 
     OperationModeCommands,
     TargetTemperatureCommands,
 )
-from homeassistant.components.zentraly.device_classes.climate.configuration import (
+from homeassistant.components.zentraly.device_classes.types import (
     ClimateConfiguration,
+    ClimateOperationMode,
 )
-from homeassistant.components.zentraly.device_classes.types import ClimateOperationMode
 from homeassistant.components.zentraly.devices.zttin import ZttinCommands
 
 
