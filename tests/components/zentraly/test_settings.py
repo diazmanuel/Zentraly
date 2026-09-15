@@ -84,8 +84,10 @@ from homeassistant.helpers.entity_component import EntityComponent
         ),
     ],
 )
+@pytest.mark.parametrize("model", ["ZTTWZ", "ZTTIN"])
 async def test_number_setting_roundtrip(
     hass: HomeAssistant,
+    model: str,
     capability: NumberCapability,
     attribute: int,
     raw: int,
@@ -97,7 +99,7 @@ async def test_number_setting_roundtrip(
     report_value: float,
 ) -> None:
     """Read, write and report a setting without defaults or extra mode writes."""
-    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api = ZentralyApi("192.168.1.42", 80, "password", f"{model}0100000001")
     api._set_connected(True)
     device = create_device(api, api.device_id, "aa")
     device.set_switch_state(SwitchCapability.ALWAYS_ON_DISPLAY, True)
@@ -176,11 +178,12 @@ async def test_number_setting_roundtrip(
 
 
 @pytest.mark.parametrize(("option", "raw"), [("temperature", 1), ("time", 0)])
+@pytest.mark.parametrize("model", ["ZTTWZ", "ZTTIN"])
 async def test_display_setting_roundtrip(
-    hass: HomeAssistant, option: str, raw: int
+    model: str, hass: HomeAssistant, option: str, raw: int
 ) -> None:
     """Display configuration uses its own enum and never writes operation mode."""
-    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api = ZentralyApi("192.168.1.42", 80, "password", f"{model}0100000001")
     api._set_connected(True)
     device = create_device(api, api.device_id, "aa")
     device.set_switch_state(SwitchCapability.ALWAYS_ON_DISPLAY, True)
@@ -239,12 +242,13 @@ async def test_display_setting_roundtrip(
     assert api._report_listeners == {}
 
 
-@pytest.fixture
+@pytest.fixture(params=["ZTTWZ", "ZTTIN"])
 async def display_controls(
+    request: pytest.FixtureRequest,
     hass: HomeAssistant,
 ) -> AsyncIterator[tuple[ZentralyApi, ZentralyNumber, ZentralySelect]]:
     """Load dependent controls with no assumed enabling-switch state."""
-    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api = ZentralyApi("192.168.1.42", 80, "password", f"{request.param}0100000001")
     api._set_connected(True)
     device = create_device(api, api.device_id, "aa")
     numbers = {e.translation_key: e for e in _create_number_entities(device)}

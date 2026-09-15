@@ -255,9 +255,10 @@ async def test_channel_report_dispatch(hass: HomeAssistant) -> None:
     assert api._report_listeners == {}
 
 
-async def test_climate_away_report(hass: HomeAssistant) -> None:
+@pytest.mark.parametrize("model", ["ZTTWZ", "ZTTIN"])
+async def test_climate_away_report(hass: HomeAssistant, model: str) -> None:
     """Climate uses the reported target in away and ignores its configuration value."""
-    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api = ZentralyApi("192.168.1.42", 80, "password", f"{model}0100000001")
     api._set_connected(True)
     device = create_device(api, api.device_id, "aa")
     entity = ZentralyClimate(device)

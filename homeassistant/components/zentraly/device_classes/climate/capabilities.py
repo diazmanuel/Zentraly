@@ -9,7 +9,6 @@ class ClimateCapability(Enum):
     LOCAL_TEMPERATURE = "local_temperature"
     TARGET_TEMPERATURE = "target_temperature"
     OPERATION_MODE = "operation_mode"
-    TEMPERATURE_OFFSET = "temperature_offset"
     AWAY_TEMPERATURE = "away_temperature"
     HEAT_DEMAND = "heat_demand"
     HUMIDITY = "humidity"

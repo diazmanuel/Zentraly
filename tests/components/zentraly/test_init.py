@@ -310,6 +310,8 @@ async def test_setup_parent_device(
         {
             Platform.BUTTON,
             Platform.CLIMATE,
+            Platform.NUMBER,
+            Platform.SELECT,
             Platform.SWITCH,
         }
     )
@@ -342,6 +344,8 @@ async def test_setup_parent_device(
         [
             Platform.BUTTON,
             Platform.CLIMATE,
+            Platform.NUMBER,
+            Platform.SELECT,
             Platform.SWITCH,
         ],
     )
@@ -500,6 +504,8 @@ async def test_setup_parent_with_child(
     assert set(forward_platforms) == {
         Platform.BUTTON,
         Platform.CLIMATE,
+        Platform.NUMBER,
+        Platform.SELECT,
         Platform.BINARY_SENSOR,
         Platform.SENSOR,
         Platform.SWITCH,
@@ -688,6 +694,8 @@ async def test_unload_parent_with_child(
     assert set(unload_platforms) == {
         Platform.BUTTON,
         Platform.CLIMATE,
+        Platform.NUMBER,
+        Platform.SELECT,
         Platform.BINARY_SENSOR,
         Platform.SENSOR,
         Platform.SWITCH,
