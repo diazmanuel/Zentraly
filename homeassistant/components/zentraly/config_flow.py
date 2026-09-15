@@ -4,7 +4,7 @@ from collections.abc import Mapping
 import logging
 from typing import Any, override
 
-import voluptuous as vol
+import probatio
 
 from homeassistant.config_entries import (
     SOURCE_REAUTH,
@@ -41,16 +41,16 @@ _LOGGER = logging.getLogger(__name__)
 
 SUBENTRY_TYPE_DEVICE = "device"
 
-PASSWORD_SCHEMA = vol.Schema(
+PASSWORD_SCHEMA = probatio.Schema(
     {
-        vol.Required(CONF_PASSWORD): str,
+        probatio.Required(CONF_PASSWORD): str,
     }
 )
 
-CHILD_DEVICE_SCHEMA = vol.Schema(
+CHILD_DEVICE_SCHEMA = probatio.Schema(
     {
-        vol.Required(CONF_DEVICE_ID): str,
-        vol.Required(CONF_MAC): str,
+        probatio.Required(CONF_DEVICE_ID): str,
+        probatio.Required(CONF_MAC): str,
     }
 )
 
@@ -321,7 +321,7 @@ class ZentralyDeviceSubentryFlow(ConfigSubentryFlow):
             try:
                 mac = self._normalize_mac(str(user_input[CONF_MAC]))
 
-            except vol.Invalid:
+            except probatio.Invalid:
                 errors["base"] = "invalid_mac"
 
             else:
@@ -388,12 +388,12 @@ class ZentralyDeviceSubentryFlow(ConfigSubentryFlow):
         normalized_mac = mac.strip().lower().replace(":", "").replace("-", "")
 
         if len(normalized_mac) != 12:
-            raise vol.Invalid(
+            raise probatio.Invalid(
                 "Zentraly MAC address must contain 12 hexadecimal characters"
             )
 
         if any(character not in "0123456789abcdef" for character in normalized_mac):
-            raise vol.Invalid(
+            raise probatio.Invalid(
                 "Zentraly MAC address must contain only hexadecimal characters"
             )
 
