@@ -38,6 +38,8 @@ DEVICE_PREFIXES: dict[str, DeviceDefinition] = {
             {
                 Platform.BUTTON,
                 Platform.CLIMATE,
+                Platform.NUMBER,
+                Platform.SELECT,
                 Platform.SWITCH,
             }
         ),

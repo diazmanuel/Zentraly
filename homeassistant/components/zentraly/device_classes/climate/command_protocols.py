@@ -98,39 +98,6 @@ class OperationModeCommands(ClimateConfigurationCommands, Protocol):
         """Parse the operation mode write response."""
 
 
-class TemperatureOffsetCommands(Protocol):
-    """Commands for devices supporting temperature offset."""
-
-    def build_read_local_temperature_offset(
-        self,
-        rid: int,
-        mac: str,
-    ) -> dict[str, Any]:
-        """Build the temperature offset read command."""
-
-    def parse_local_temperature_offset_response(
-        self,
-        response: dict[str, Any],
-        expected_rid: int,
-    ) -> float:
-        """Parse the temperature offset response."""
-
-    def build_write_local_temperature_offset(
-        self,
-        rid: int,
-        mac: str,
-        offset: float,
-    ) -> dict[str, Any]:
-        """Build the temperature offset write command."""
-
-    def parse_write_local_temperature_offset_response(
-        self,
-        response: dict[str, Any],
-        expected_rid: int,
-    ) -> None:
-        """Parse the temperature offset write response."""
-
-
 class AwayTemperatureCommands(Protocol):
     """Commands for devices supporting away temperature."""
 

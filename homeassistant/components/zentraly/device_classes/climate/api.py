@@ -14,7 +14,6 @@ from .command_protocols import (
     LocalTemperatureCommands,
     OperationModeCommands,
     TargetTemperatureCommands,
-    TemperatureOffsetCommands,
 )
 from .configuration import ClimateConfiguration
 
@@ -284,73 +283,6 @@ class ZentralyClimateApi:
 
         try:
             commands.parse_write_operation_mode_response(
-                response,
-                rid,
-            )
-
-        except (TypeError, ValueError) as err:
-            raise ZentralyInvalidResponseError("Invalid action response") from err
-
-        return True
-
-    async def async_get_temperature_offset(self) -> float | None:
-        """Return the local temperature offset."""
-
-        if not self.supports(ClimateCapability.TEMPERATURE_OFFSET):
-            return None
-
-        commands = cast(
-            TemperatureOffsetCommands,
-            self._device.commands,
-        )
-
-        result = await self._device.async_execute_command(
-            lambda rid: commands.build_read_local_temperature_offset(
-                rid=rid,
-                mac=self._device.mac,
-            )
-        )
-
-        if result is None:
-            return None
-
-        rid, response = result
-
-        try:
-            return commands.parse_local_temperature_offset_response(
-                response,
-                rid,
-            )
-
-        except TypeError, ValueError:
-            return None
-
-    async def async_set_temperature_offset(
-        self,
-        offset: float,
-    ) -> bool:
-        """Set the local temperature offset."""
-
-        if not self.supports(ClimateCapability.TEMPERATURE_OFFSET):
-            raise ZentralyValidationError("Unsupported action")
-
-        commands = cast(
-            TemperatureOffsetCommands,
-            self._device.commands,
-        )
-
-        result = await self._device.async_execute_action_command(
-            lambda rid: commands.build_write_local_temperature_offset(
-                rid=rid,
-                mac=self._device.mac,
-                offset=offset,
-            )
-        )
-
-        rid, response = result
-
-        try:
-            commands.parse_write_local_temperature_offset_response(
                 response,
                 rid,
             )
