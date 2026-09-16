@@ -3,14 +3,9 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from zentraly import BinarySensorCapability, ZentralyBinarySensorApi
 
 from homeassistant.components.zentraly.binary_sensor import ZentralyBinarySensor
-from homeassistant.components.zentraly.device_classes.binary_sensor.api import (
-    ZentralyBinarySensorApi,
-)
-from homeassistant.components.zentraly.device_classes.binary_sensor.capabilities import (
-    BinarySensorCapability,
-)
 
 
 @pytest.mark.parametrize(

@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
+from zentraly.connection import ZentralyConnection
 
-from homeassistant.components.zentraly.connection import ZentralyConnection
 from homeassistant.components.zentraly.models import ZentralyDevice
 
 
@@ -30,7 +30,7 @@ async def transport() -> AsyncIterator[tuple[ZentralyConnection, MagicMock]]:
     session.close = AsyncMock()
     connection = ZentralyConnection("192.168.1.42", 80)
     with patch(
-        "homeassistant.components.zentraly.connection.aiohttp.ClientSession",
+        "zentraly.connection.aiohttp.ClientSession",
         return_value=session,
     ):
         await connection.async_connect()

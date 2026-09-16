@@ -6,21 +6,14 @@ from typing import Any, Self, override
 from unittest.mock import patch
 
 import pytest
+from zentraly import SwitchCapability, ZentralyApi, ZentralyOutputType
+from zentraly.commands.base import ReportUpdates, ZentralyDeviceCommands
 
 from homeassistant.components.zentraly import create_device
-from homeassistant.components.zentraly.api import ZentralyApi
 from homeassistant.components.zentraly.binary_sensor import (
     _create_binary_sensor_entities,
 )
 from homeassistant.components.zentraly.climate import ZentralyClimate
-from homeassistant.components.zentraly.commands.base import (
-    ReportUpdates,
-    ZentralyDeviceCommands,
-)
-from homeassistant.components.zentraly.device_classes.switch.capabilities import (
-    SwitchCapability,
-)
-from homeassistant.components.zentraly.device_classes.types import ZentralyOutputType
 from homeassistant.components.zentraly.models import ZentralyDevice
 from homeassistant.components.zentraly.number import _create_number_entities
 from homeassistant.components.zentraly.select import _create_select_entities

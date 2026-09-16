@@ -1,1 +1,0 @@
-"""Zentraly select device class."""

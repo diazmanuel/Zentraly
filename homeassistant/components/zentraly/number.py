@@ -4,6 +4,14 @@ from datetime import datetime
 import logging
 from typing import Any, override
 
+from zentraly import (
+    NumberCapability,
+    ZentralyApiError,
+    ZentralyConnectionError,
+    ZentralyNumberApi,
+    ZentralyValidationError,
+)
+
 from homeassistant.components.number import NumberEntity
 from homeassistant.const import (
     PERCENTAGE,
@@ -19,14 +27,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 
 from .actions import translate_action_errors
-from .api import SCAN_INTERVAL
-from .device_classes.number.api import ZentralyNumberApi
-from .device_classes.number.capabilities import NumberCapability
-from .exceptions import (
-    ZentralyApiError,
-    ZentralyConnectionError,
-    ZentralyValidationError,
-)
+from .const import SCAN_INTERVAL
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0

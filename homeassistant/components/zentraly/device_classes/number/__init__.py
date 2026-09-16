@@ -1,1 +1,0 @@
-"""Zentraly number device class."""

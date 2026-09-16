@@ -6,19 +6,15 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-
-from homeassistant.components.zentraly import create_device
-from homeassistant.components.zentraly.api import ZentralyApi
-from homeassistant.components.zentraly.device_classes.number.capabilities import (
+from zentraly import (
     NumberCapability,
-)
-from homeassistant.components.zentraly.device_classes.switch.api import (
+    SwitchCapability,
+    ZentralyApi,
+    ZentralyApiError,
     ZentralySwitchApi,
 )
-from homeassistant.components.zentraly.device_classes.switch.capabilities import (
-    SwitchCapability,
-)
-from homeassistant.components.zentraly.exceptions import ZentralyApiError
+
+from homeassistant.components.zentraly import create_device
 from homeassistant.components.zentraly.number import (
     ZentralyNumber,
     _create_number_entities,

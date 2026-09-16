@@ -4,13 +4,8 @@ from contextlib import AbstractContextManager, nullcontext
 from unittest.mock import MagicMock, patch
 
 import pytest
+from zentraly import SwitchCapability, ZentralySwitchApi
 
-from homeassistant.components.zentraly.device_classes.switch.api import (
-    ZentralySwitchApi,
-)
-from homeassistant.components.zentraly.device_classes.switch.capabilities import (
-    SwitchCapability,
-)
 from homeassistant.components.zentraly.switch import ZentralySwitch
 from homeassistant.exceptions import HomeAssistantError
 

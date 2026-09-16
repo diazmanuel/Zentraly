@@ -5,17 +5,15 @@ from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
-
-from homeassistant.components.zentraly import create_device
-from homeassistant.components.zentraly.api import ZentralyApi
-from homeassistant.components.zentraly.device_classes.number.api import (
+from zentraly import (
+    NumberCapability,
+    ZentralyApi,
+    ZentralyConnectionError,
     ZentralyNumberApi,
 )
-from homeassistant.components.zentraly.device_classes.number.capabilities import (
-    NumberCapability,
-)
-from homeassistant.components.zentraly.devices.zteim import ZteimCommands
-from homeassistant.components.zentraly.exceptions import ZentralyConnectionError
+from zentraly.devices.zteim import ZteimCommands
+
+from homeassistant.components.zentraly import create_device
 from homeassistant.components.zentraly.models import ZentralyDevice
 from homeassistant.components.zentraly.number import ZentralyNumber
 from homeassistant.core import HomeAssistant

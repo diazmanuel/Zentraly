@@ -4,6 +4,14 @@ import asyncio
 from datetime import datetime
 from typing import Any, override
 
+from zentraly import (
+    ClimateCapability,
+    ClimateOperationMode,
+    ZentralyApiError,
+    ZentralyClimateApi,
+    ZentralyValidationError,
+)
+
 from homeassistant.components.climate import (
     PRESET_AWAY,
     PRESET_NONE,
@@ -19,11 +27,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
 from .actions import translate_action_errors
-from .api import SCAN_INTERVAL
-from .device_classes.climate.api import ZentralyClimateApi
-from .device_classes.climate.capabilities import ClimateCapability
-from .device_classes.types import ClimateOperationMode
-from .exceptions import ZentralyApiError, ZentralyValidationError
+from .const import SCAN_INTERVAL
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0

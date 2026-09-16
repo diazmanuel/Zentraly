@@ -3,6 +3,15 @@
 from datetime import datetime
 import logging
 
+from zentraly import (
+    DeviceModel,
+    ZentralyApi,
+    ZentralyAuthenticationError,
+    ZentralyConnectionError,
+    get_device_commands,
+    get_device_model,
+)
+
 from homeassistant.const import (
     CONF_DEVICE_ID,
     CONF_HOST,
@@ -18,14 +27,12 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
 )
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .api import SCAN_INTERVAL, ZentralyApi
-from .const import DOMAIN
-from .devices import get_device_commands
-from .devices.device import DeviceModel, get_device_model, get_device_platforms
-from .exceptions import ZentralyAuthenticationError, ZentralyConnectionError
+from .const import DOMAIN, SCAN_INTERVAL
 from .models import ZentralyConfigEntry, ZentralyData, ZentralyDevice
+from .platforms import get_device_platforms
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -266,6 +273,7 @@ async def async_setup_entry(
     device_id = entry.data[CONF_DEVICE_ID]
 
     api = ZentralyApi(
+        session=async_get_clientsession(hass),
         mac=entry.data[CONF_MAC],
         host=entry.data[CONF_HOST],
         port=entry.data[CONF_PORT],

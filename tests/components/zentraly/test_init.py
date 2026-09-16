@@ -4,19 +4,17 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from homeassistant.components.zentraly import create_device
-from homeassistant.components.zentraly.api import ZentralyApi
-from homeassistant.components.zentraly.connection import ZentralyConnection
-from homeassistant.components.zentraly.const import DOMAIN
-from homeassistant.components.zentraly.devices.device import (
+from zentraly import (
     DeviceModel,
-    get_device_platforms,
-)
-from homeassistant.components.zentraly.exceptions import (
+    ZentralyApi,
     ZentralyAuthenticationError,
     ZentralyConnectionError,
 )
+from zentraly.connection import ZentralyConnection
+
+from homeassistant.components.zentraly import create_device
+from homeassistant.components.zentraly.const import DOMAIN
+from homeassistant.components.zentraly.platforms import get_device_platforms
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
     CONF_DEVICE_ID,

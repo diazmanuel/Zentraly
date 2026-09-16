@@ -5,41 +5,26 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from homeassistant.components.zentraly import create_device
-from homeassistant.components.zentraly.actions import translate_action_errors
-from homeassistant.components.zentraly.api import ZentralyApi
-from homeassistant.components.zentraly.commands.base import (
-    ActionCommandExecutor,
-    ZentralyDeviceCommands,
-)
-from homeassistant.components.zentraly.device_classes.button.api import (
-    ZentralyButtonApi,
-)
-from homeassistant.components.zentraly.device_classes.climate.api import (
-    ZentralyClimateApi,
-)
-from homeassistant.components.zentraly.device_classes.number.api import (
-    ZentralyNumberApi,
-)
-from homeassistant.components.zentraly.device_classes.number.capabilities import (
+from zentraly import (
     NumberCapability,
-)
-from homeassistant.components.zentraly.device_classes.select.api import (
-    ZentralySelectApi,
-)
-from homeassistant.components.zentraly.device_classes.switch.api import (
-    ZentralySwitchApi,
-)
-from homeassistant.components.zentraly.device_classes.types import SelectOperationMode
-from homeassistant.components.zentraly.exceptions import (
+    SelectOperationMode,
+    ZentralyApi,
     ZentralyApiError,
+    ZentralyButtonApi,
+    ZentralyClimateApi,
     ZentralyCommandRejectedError,
     ZentralyConnectionBusyError,
     ZentralyConnectionError,
     ZentralyInvalidResponseError,
+    ZentralyNumberApi,
+    ZentralySelectApi,
+    ZentralySwitchApi,
     ZentralyValidationError,
 )
+from zentraly.commands.base import ActionCommandExecutor, ZentralyDeviceCommands
+
+from homeassistant.components.zentraly import create_device
+from homeassistant.components.zentraly.actions import translate_action_errors
 from homeassistant.components.zentraly.models import ZentralyDevice
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
