@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 import logging
+from types import MappingProxyType
 from typing import Any, override
 
 import probatio
@@ -23,6 +24,7 @@ from homeassistant.config_entries import (
     ConfigEntryState,
     ConfigFlow as HAConfigFlow,
     ConfigFlowResult,
+    ConfigSubentry,
     ConfigSubentryFlow,
     SubentryFlowResult,
 )
@@ -33,7 +35,8 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_PORT,
 )
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
@@ -42,6 +45,7 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 SUBENTRY_TYPE_DEVICE = "device"
+CONF_PARENT = "parent"
 
 PASSWORD_SCHEMA = probatio.Schema(
     {
@@ -114,6 +118,52 @@ def _child_limit_reached(
     return child_count >= max_children
 
 
+def _parent_error(entry: ConfigEntry) -> str | None:
+    """Return why an entry cannot currently accept a child."""
+    if entry.state is not ConfigEntryState.LOADED:
+        return "entry_not_loaded"
+    device_id = entry.data.get(CONF_DEVICE_ID)
+    if not isinstance(device_id, str) or not supports_child_devices(device_id):
+        return "unsupported_parent"
+    if _child_limit_reached(entry, device_id):
+        return "max_children"
+    return None
+
+
+def _normalize_mac(mac: str) -> str:
+    """Normalize a child MAC address."""
+    normalized_mac = mac.strip().lower().replace(":", "").replace("-", "")
+    if len(normalized_mac) != 12:
+        raise probatio.Invalid("MAC address must contain 12 hexadecimal characters")
+    if any(character not in "0123456789abcdef" for character in normalized_mac):
+        raise probatio.Invalid("MAC address must contain only hexadecimal characters")
+    return normalized_mac
+
+
+async def _async_validate_child(
+    hass: HomeAssistant, entry: ConfigEntry, user_input: dict[str, Any]
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Validate child identity for either configuration entry point."""
+    device_id = str(user_input[CONF_DEVICE_ID]).strip().upper()
+    try:
+        mac = _normalize_mac(str(user_input[CONF_MAC]))
+    except probatio.Invalid:
+        return {}, {"base": "invalid_mac"}
+    if get_device_model(device_id) is DeviceModel.UNKNOWN:
+        return {}, {"base": "unsupported_device"}
+    if not is_allowed_child_device(entry.data[CONF_DEVICE_ID], device_id):
+        return {}, {"base": "unsupported_child"}
+    if _device_id_is_configured(hass.config_entries.async_entries(DOMAIN), device_id):
+        return {}, {"base": "already_configured"}
+    try:
+        await entry.runtime_data.api.async_validate_child_device(device_id, mac)
+    except ZentralyConnectionError:
+        return {}, {"base": "cannot_connect"}
+    except TypeError, ValueError:
+        return {}, {"base": "invalid_device"}
+    return {CONF_DEVICE_ID: device_id, CONF_MAC: mac}, {}
+
+
 class ZentralyConfigFlow(HAConfigFlow, domain=DOMAIN):
     """Handle a Zentraly config flow."""
 
@@ -121,6 +171,7 @@ class ZentralyConfigFlow(HAConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
 
         self.data: dict[str, Any] = {}
+        self._parent_entry_id = ""
 
     @classmethod
     @callback
@@ -278,9 +329,95 @@ class ZentralyConfigFlow(HAConfigFlow, domain=DOMAIN):
         self,
         user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
-        """Handle manual setup."""
+        """Select a configured parent for a child device."""
+        configured_parents = [
+            entry
+            for entry in self._async_current_entries()
+            if isinstance(device_id := entry.data.get(CONF_DEVICE_ID), str)
+            and supports_child_devices(device_id)
+        ]
+        if not configured_parents:
+            return self.async_abort(reason="no_parents_configured")
+        parents = {
+            entry.entry_id: entry
+            for entry in configured_parents
+            if _parent_error(entry) is None
+        }
+        if not parents:
+            return self.async_abort(reason="no_available_parents")
 
-        return self.async_abort(reason="zeroconf_only")
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if user_input[CONF_PARENT] in parents:
+                self._parent_entry_id = user_input[CONF_PARENT]
+                return await self.async_step_child()
+            errors["base"] = "parent_unavailable"
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=probatio.Schema(
+                {
+                    probatio.Required(CONF_PARENT): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                selector.SelectOptionDict(
+                                    value=entry.entry_id,
+                                    label=f"{entry.title} ({entry.data[CONF_DEVICE_ID]})",
+                                )
+                                for entry in parents.values()
+                            ],
+                            mode=selector.SelectSelectorMode.LIST,
+                        )
+                    )
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_child(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add a child to the selected existing configuration entry."""
+        entry = self.hass.config_entries.async_get_entry(self._parent_entry_id)
+        if entry is None:
+            return self.async_abort(reason="parent_unavailable")
+        if error := _parent_error(entry):
+            return self.async_abort(reason=error)
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            data, errors = await _async_validate_child(self.hass, entry, user_input)
+            if not errors:
+                # Validation awaits the device; the parent may change meanwhile.
+                if (
+                    self.hass.config_entries.async_get_entry(entry.entry_id)
+                    is not entry
+                ):
+                    return self.async_abort(reason="parent_unavailable")
+                if error := _parent_error(entry):
+                    return self.async_abort(reason=error)
+                if _device_id_is_configured(
+                    self.hass.config_entries.async_entries(DOMAIN), data[CONF_DEVICE_ID]
+                ):
+                    errors["base"] = "already_configured"
+                else:
+                    self.hass.config_entries.async_add_subentry(
+                        entry,
+                        ConfigSubentry(
+                            data=MappingProxyType(data),
+                            subentry_type=SUBENTRY_TYPE_DEVICE,
+                            title=data[CONF_DEVICE_ID],
+                            unique_id=data[CONF_DEVICE_ID],
+                        ),
+                    )
+                    return self.async_abort(reason="child_added")
+
+        return self.async_show_form(
+            step_id="child",
+            data_schema=CHILD_DEVICE_SCHEMA,
+            errors=errors,
+            description_placeholders={"parent": entry.title},
+        )
 
 
 class ZentralyDeviceSubentryFlow(ConfigSubentryFlow):
@@ -302,102 +439,21 @@ class ZentralyDeviceSubentryFlow(ConfigSubentryFlow):
 
         entry = self._get_entry()
 
-        if entry.state is not ConfigEntryState.LOADED:
-            return self.async_abort(reason="entry_not_loaded")
-
-        parent_device_id = entry.data.get(CONF_DEVICE_ID)
-
-        if not isinstance(parent_device_id, str):
-            return self.async_abort(reason="unsupported_parent")
-
-        if not supports_child_devices(parent_device_id):
-            return self.async_abort(reason="unsupported_parent")
-
-        if _child_limit_reached(entry, parent_device_id):
-            return self.async_abort(reason="max_children")
+        if error := _parent_error(entry):
+            return self.async_abort(reason=error)
 
         errors: dict[str, str] = {}
-
         if user_input is not None:
-            device_id = str(user_input[CONF_DEVICE_ID]).strip().upper()
-
-            try:
-                mac = self._normalize_mac(str(user_input[CONF_MAC]))
-
-            except probatio.Invalid:
-                errors["base"] = "invalid_mac"
-
-            else:
-                device_model = get_device_model(device_id)
-
-                if device_model is DeviceModel.UNKNOWN:
-                    errors["base"] = "unsupported_device"
-
-                elif not is_allowed_child_device(
-                    parent_device_id,
-                    device_id,
-                ):
-                    errors["base"] = "unsupported_child"
-
-                elif _device_id_is_configured(
-                    self.hass.config_entries.async_entries(DOMAIN),
-                    device_id,
-                ):
-                    errors["base"] = "already_configured"
-
-                else:
-                    try:
-                        await entry.runtime_data.api.async_validate_child_device(
-                            device_id,
-                            mac,
-                        )
-
-                    except ZentralyConnectionError:
-                        errors["base"] = "cannot_connect"
-
-                    except TypeError, ValueError:
-                        errors["base"] = "invalid_device"
-
-                    else:
-                        _LOGGER.info(
-                            "Zentraly child device validated: "
-                            "parent=%s device_id=%s mac=%s",
-                            parent_device_id,
-                            device_id,
-                            mac,
-                        )
-
-                        return self.async_create_entry(
-                            title=device_id,
-                            unique_id=device_id,
-                            data={
-                                CONF_DEVICE_ID: device_id,
-                                CONF_MAC: mac,
-                            },
-                        )
+            data, errors = await _async_validate_child(self.hass, entry, user_input)
+            if not errors:
+                return self.async_create_entry(
+                    title=data[CONF_DEVICE_ID],
+                    unique_id=data[CONF_DEVICE_ID],
+                    data=data,
+                )
 
         return self.async_show_form(
             step_id="user",
             data_schema=CHILD_DEVICE_SCHEMA,
             errors=errors,
         )
-
-    @staticmethod
-    def _normalize_mac(
-        mac: str,
-    ) -> str:
-        """Normalize and validate a Zentraly MAC address."""
-
-        normalized_mac = mac.strip().lower().replace(":", "").replace("-", "")
-
-        if len(normalized_mac) != 12:
-            raise probatio.Invalid(
-                "Zentraly MAC address must contain 12 hexadecimal characters"
-            )
-
-        if any(character not in "0123456789abcdef" for character in normalized_mac):
-            raise probatio.Invalid(
-                "Zentraly MAC address must contain only hexadecimal characters"
-            )
-
-        return normalized_mac

@@ -2,15 +2,28 @@
   "config": {
     "abort": {
       "already_configured": "This device is already configured.",
+      "child_added": "The Zentraly child device was added successfully.",
+      "entry_not_loaded": "The parent Zentraly device is not currently loaded.",
+      "max_children": "This Zentraly device has reached the maximum number of child devices.",
+      "no_available_parents": "No configured Zentraly devices can currently accept a child. The parent must be loaded, support child devices, and have available capacity.",
+      "no_parents_configured": "No Zentraly parent devices are configured.",
+      "parent_unavailable": "The selected parent is no longer available. Start again and select an available parent.",
       "reauth_successful": "Reauthentication was successful.",
       "unsupported_device": "This Zentraly device is not supported for automatic setup.",
+      "unsupported_parent": "This Zentraly device does not support child devices.",
       "wrong_device": "The device does not match the configured Zentraly device.",
       "zeroconf_only": "Zentraly devices can only be added after being discovered on the local network."
     },
     "error": {
+      "already_configured": "[%key:component::zentraly::config_subentries::device::error::already_configured%]",
       "cannot_connect": "Unable to connect to the device.",
       "invalid_auth": "Invalid password.",
-      "unknown": "Unexpected error."
+      "invalid_device": "[%key:component::zentraly::config_subentries::device::error::invalid_device%]",
+      "invalid_mac": "[%key:component::zentraly::config_subentries::device::error::invalid_mac%]",
+      "parent_unavailable": "The selected parent is no longer available. Select another parent.",
+      "unknown": "Unexpected error.",
+      "unsupported_child": "[%key:component::zentraly::config_subentries::device::error::unsupported_child%]",
+      "unsupported_device": "[%key:component::zentraly::config_subentries::device::error::unsupported_device%]"
     },
     "flow_title": "{name}",
     "step": {
@@ -23,6 +36,28 @@
         },
         "description": "Enter the password for the Zentraly device.",
         "title": "Authentication"
+      },
+      "child": {
+        "data": {
+          "device_id": "Device ID",
+          "mac": "MAC address"
+        },
+        "data_description": {
+          "device_id": "The Zentraly device ID of the child device.",
+          "mac": "The MAC address of the child device."
+        },
+        "description": "Enter the device ID and MAC address of the child to add to {parent}.",
+        "title": "Add Zentraly child device"
+      },
+      "user": {
+        "data": {
+          "parent": "Parent device"
+        },
+        "data_description": {
+          "parent": "The Zentraly device through which the child communicates."
+        },
+        "description": "Select the parent device. Only configured devices that are loaded and have capacity for a supported child are listed.",
+        "title": "Add a Zentraly device as a child of…"
       }
     }
   },

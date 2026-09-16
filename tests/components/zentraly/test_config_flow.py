@@ -416,10 +416,10 @@ async def test_zeroconf_already_configured_same_address(
     assert entry.data[CONF_PASSWORD] == PASSWORD
 
 
-async def test_user_setup_aborts(
+async def test_user_setup_without_discoveries(
     hass: HomeAssistant,
 ) -> None:
-    """Test manual setup is not supported."""
+    """Explain when there are no configured parent devices."""
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -427,7 +427,25 @@ async def test_user_setup_aborts(
     )
 
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "zeroconf_only"
+    assert result["reason"] == "no_parents_configured"
+
+
+async def test_user_setup_with_pending_discovery(hass: HomeAssistant) -> None:
+    """A pending discovery does not count as an installed parent."""
+    discovery = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=_zeroconf_info(device_id=DEVICE_ID),
+    )
+    assert discovery["type"] is FlowResultType.FORM
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_parents_configured"
+    assert hass.config_entries.flow.async_get(discovery["flow_id"])
 
 
 async def test_parent_supports_child_subentry(
@@ -999,3 +1017,226 @@ async def test_zeroconf_ignores_unrelated_subentries(hass: HomeAssistant) -> Non
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "auth"
+
+
+async def test_add_child_from_integration_picker(hass: HomeAssistant) -> None:
+    """Select an existing parent and add a subentry without another instance."""
+    parent = _parent_entry()
+    parent.add_to_hass(hass)
+    parent.runtime_data = SimpleNamespace(
+        api=SimpleNamespace(async_validate_child_device=AsyncMock())
+    )
+    parent.add_update_listener(_async_reload_entry)
+    other = MockConfigEntry(
+        domain=DOMAIN,
+        title="Other thermostat",
+        unique_id="ZTTIN0100000999",
+        state=config_entries.ConfigEntryState.LOADED,
+        data={CONF_DEVICE_ID: "ZTTIN0100000999"},
+    )
+    other.add_to_hass(hass)
+    unsupported = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=ZTEIM_DEVICE_ID,
+        state=config_entries.ConfigEntryState.LOADED,
+        data={CONF_DEVICE_ID: ZTEIM_DEVICE_ID},
+    )
+    unsupported.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+    assert result["step_id"] == "user"
+    parent_selector = result["data_schema"].schema["parent"]
+    assert {option["value"] for option in parent_selector.config["options"]} == {
+        parent.entry_id,
+        other.entry_id,
+    }
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"parent": parent.entry_id}
+    )
+    assert result["step_id"] == "child"
+    assert result["description_placeholders"] == {"parent": parent.title}
+    with patch.object(hass.config_entries, "async_reload", return_value=True) as reload:
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_DEVICE_ID: CHILD_DEVICE_ID.lower(), CONF_MAC: "10:20:BA:12:31:6C"},
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "child_added"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 3
+    child = next(iter(parent.subentries.values()))
+    assert child.unique_id == CHILD_DEVICE_ID
+    assert child.data == {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC}
+    assert not other.subentries
+    parent.runtime_data.api.async_validate_child_device.assert_awaited_once_with(
+        CHILD_DEVICE_ID, CHILD_MAC
+    )
+    reload.assert_awaited_once_with(parent.entry_id)
+
+
+@pytest.mark.parametrize("data", [{CONF_DEVICE_ID: ZTEIM_DEVICE_ID}, {}])
+async def test_no_configured_parent(hass: HomeAssistant, data: dict[str, str]) -> None:
+    """Non-parent entries do not count as installed parents."""
+    MockConfigEntry(domain=DOMAIN, data=data).add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["reason"] == "no_parents_configured"
+
+
+async def test_no_available_parent(hass: HomeAssistant) -> None:
+    """A configured but unloaded parent cannot accept a child."""
+    parent = _parent_entry(state=config_entries.ConfigEntryState.NOT_LOADED)
+    parent.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["reason"] == "no_available_parents"
+
+
+async def test_parent_selection_recovery(hass: HomeAssistant) -> None:
+    """An obsolete selection can be corrected without restarting the flow."""
+    parent = _parent_entry()
+    parent.add_to_hass(hass)
+    other = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="ZTTIN0100000999",
+        state=config_entries.ConfigEntryState.LOADED,
+        data={CONF_DEVICE_ID: "ZTTIN0100000999"},
+    )
+    other.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    hass.config_entries.async_update_entry(
+        parent, data={CONF_DEVICE_ID: ZTEIM_DEVICE_ID}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"parent": parent.entry_id}
+    )
+    assert result["errors"] == {"base": "parent_unavailable"}
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"parent": other.entry_id}
+    )
+    assert result["step_id"] == "child"
+
+
+async def test_picker_child_validation_recovery(hass: HomeAssistant) -> None:
+    """The new route shares validation and allows retrying device failures."""
+    parent = _parent_entry()
+    parent.add_to_hass(hass)
+    parent.runtime_data = SimpleNamespace(
+        api=SimpleNamespace(
+            async_validate_child_device=AsyncMock(
+                side_effect=[ZentralyConnectionError(), None]
+            )
+        )
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"parent": parent.entry_id}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC}
+    )
+    assert result["errors"] == {"base": "cannot_connect"}
+    assert not parent.subentries
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC}
+    )
+    assert result["reason"] == "child_added"
+    assert len(parent.subentries) == 1
+
+
+async def test_picker_parent_removed(hass: HomeAssistant) -> None:
+    """Removing the selected parent invalidates the child form."""
+    parent = _parent_entry()
+    parent.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"parent": parent.entry_id}
+    )
+    with patch.object(hass.config_entries, "async_unload", return_value=True):
+        await hass.config_entries.async_remove(parent.entry_id)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC}
+    )
+    assert result["reason"] == "parent_unavailable"
+
+
+async def test_picker_parent_changes(hass: HomeAssistant) -> None:
+    """Recheck eligibility when submitting an open child form."""
+    parent = _parent_entry()
+    parent.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"parent": parent.entry_id}
+    )
+    hass.config_entries.async_update_entry(
+        parent, data={CONF_DEVICE_ID: ZTEIM_DEVICE_ID}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC}
+    )
+    assert result["reason"] == "unsupported_parent"
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        pytest.param("removed", "parent_unavailable", id="parent-removed"),
+        pytest.param("unsupported", "unsupported_parent", id="parent-changed"),
+        pytest.param("duplicate", "already_configured", id="child-added-elsewhere"),
+    ],
+)
+async def test_picker_changes_during_validation(
+    hass: HomeAssistant, change: str, expected: str
+) -> None:
+    """Do not attach a child using stale information after awaiting the device."""
+    parent = _parent_entry()
+    parent.add_to_hass(hass)
+
+    async def remove_parent(device_id: str, mac: str) -> None:
+        with patch.object(hass.config_entries, "async_unload", return_value=True):
+            await hass.config_entries.async_remove(parent.entry_id)
+
+    async def change_parent(device_id: str, mac: str) -> None:
+        hass.config_entries.async_update_entry(
+            parent, data={CONF_DEVICE_ID: ZTEIM_DEVICE_ID}
+        )
+
+    async def add_duplicate(device_id: str, mac: str) -> None:
+        MockConfigEntry(
+            domain=DOMAIN, unique_id=device_id, data={CONF_DEVICE_ID: device_id}
+        ).add_to_hass(hass)
+
+    parent.runtime_data = SimpleNamespace(
+        api=SimpleNamespace(
+            async_validate_child_device=AsyncMock(
+                side_effect={
+                    "removed": remove_parent,
+                    "unsupported": change_parent,
+                    "duplicate": add_duplicate,
+                }[change]
+            )
+        )
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"parent": parent.entry_id}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: CHILD_DEVICE_ID, CONF_MAC: CHILD_MAC}
+    )
+    assert result.get("reason", result.get("errors", {}).get("base")) == expected
+    assert not parent.subentries
