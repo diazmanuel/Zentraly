@@ -7,7 +7,12 @@ import pytest
 from zentraly import ClimateCapability, ClimateOperationMode, ZentralyClimateApi
 from zentraly.devices.zttin import ZttinCommands
 
-from homeassistant.components.climate import PRESET_AWAY, HVACAction, HVACMode
+from homeassistant.components.climate import (
+    PRESET_AWAY,
+    PRESET_NONE,
+    HVACAction,
+    HVACMode,
+)
 from homeassistant.components.zentraly.climate import ZentralyClimate
 from homeassistant.exceptions import HomeAssistantError
 
@@ -147,3 +152,34 @@ async def test_temperature_with_explicit_mode(
         call.temperature(22.0),
         call.mode(operation),
     ]
+
+
+@pytest.mark.parametrize(
+    ("success", "preset", "expectation"),
+    [
+        pytest.param(True, PRESET_NONE, nullcontext(), id="success"),
+        pytest.param(
+            False, PRESET_AWAY, pytest.raises(HomeAssistantError), id="failure"
+        ),
+    ],
+)
+async def test_exit_away_preset(
+    platform_device: MagicMock,
+    success: bool,
+    preset: str,
+    expectation: AbstractContextManager,
+) -> None:
+    """Only a confirmed write leaves Away and selects manual operation."""
+    api = MagicMock(spec=ZentralyClimateApi)
+    api.configuration = ZttinCommands.climate_configuration
+    api.supports.return_value = True
+    api.async_set_operation_mode.return_value = success
+    entity = ZentralyClimate(platform_device, climate_api=api)
+    with patch.object(entity, "async_write_ha_state"):
+        entity._handle_state_update(
+            {ClimateCapability.OPERATION_MODE: ClimateOperationMode.AWAY}
+        )
+        with expectation:
+            await entity.async_set_preset_mode(PRESET_NONE)
+    assert entity.preset_mode == preset
+    api.async_set_operation_mode.assert_awaited_once_with(ClimateOperationMode.MANUAL)
