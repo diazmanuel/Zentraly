@@ -33,7 +33,7 @@ def _create_select_entities(
     """Create select entities supported by a Zentraly device."""
 
     entities: list[ZentralySelect] = []
-    endpoints = device.commands.channel_endpoints
+    endpoints = device.channel_endpoints
     for endpoint in endpoints:
         select_api = ZentralySelectApi(device, endpoint=endpoint)
         entities.extend(

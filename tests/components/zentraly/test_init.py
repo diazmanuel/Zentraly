@@ -1,6 +1,7 @@
 """Tests for the Zentraly integration setup."""
 
 import asyncio
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,10 +10,11 @@ from zentraly import (
     ZentralyApi,
     ZentralyAuthenticationError,
     ZentralyConnectionError,
+    ZentralyDeviceInfo,
 )
 from zentraly.connection import ZentralyConnection
 
-from homeassistant.components.zentraly import create_device
+from homeassistant.components.zentraly import _async_refresh_device_info, create_device
 from homeassistant.components.zentraly.const import DOMAIN
 from homeassistant.components.zentraly.platforms import get_device_platforms
 from homeassistant.config_entries import ConfigEntryState
@@ -27,8 +29,9 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.util import dt as dt_util
 
-from tests.common import MockConfigEntry
+from tests.common import MockConfigEntry, async_fire_time_changed
 
 PARENT_DEVICE_ID = "ZTTIN0100000631"
 CHILD_DEVICE_ID = "ZTBIN0100000021"
@@ -700,3 +703,77 @@ async def test_unload_parent_with_child(
     }
 
     mock_disconnect.assert_awaited_once()
+
+
+async def test_refresh_device_info(
+    hass: HomeAssistant,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Update registry versions via the public API and retain last known values."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    api = MagicMock(spec=ZentralyApi)
+    api.connected = True
+    api.host = HOST
+    api.port = PORT
+    device = create_device(api, PARENT_DEVICE_ID, PARENT_MAC)
+    registered = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id, **device.device_info
+    )
+    with patch.object(
+        type(device),
+        "async_get_device_info",
+        side_effect=[
+            ZentralyDeviceInfo("1.0", "2.0"),
+            ZentralyDeviceInfo(hardware_version="2.1"),
+            ZentralyDeviceInfo(),
+        ],
+    ) as read_info:
+        await _async_refresh_device_info(device, device_registry, registered.id)
+        assert device_registry.async_get(registered.id).sw_version == "1.0"
+        assert device_registry.async_get(registered.id).hw_version == "2.0"
+        await _async_refresh_device_info(device, device_registry, registered.id)
+        assert device_registry.async_get(registered.id).sw_version == "1.0"
+        assert device_registry.async_get(registered.id).hw_version == "2.1"
+        with patch.object(device_registry, "async_update_device") as update:
+            await _async_refresh_device_info(device, device_registry, registered.id)
+            api.connected = False
+            await _async_refresh_device_info(device, device_registry, registered.id)
+        update.assert_not_called()
+        assert read_info.await_count == 3
+
+
+async def test_device_info_periodic_refresh(
+    hass: HomeAssistant, device_registry: dr.DeviceRegistry
+) -> None:
+    """Run the scheduled public version read and cancel it when unloading."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    api = MagicMock(spec=ZentralyApi)
+    api.connected = True
+    api.device_id = PARENT_DEVICE_ID
+    api.host = HOST
+    api.port = PORT
+    api.async_validate_password.return_value = PARENT_MAC
+    with (
+        patch("homeassistant.components.zentraly.ZentralyApi", return_value=api),
+        patch.object(hass.config_entries, "async_forward_entry_setups"),
+        patch(
+            "homeassistant.components.zentraly.models.ZentralyDevice.async_get_device_info",
+            return_value=ZentralyDeviceInfo("1.0", "2.0"),
+        ) as read_info,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        now = dt_util.utcnow()
+        async_fire_time_changed(hass, now + timedelta(minutes=5))
+        await hass.async_block_till_done()
+        read_info.assert_awaited_once_with()
+        registered = device_registry.async_get_device_by_identifier(
+            (DOMAIN, PARENT_DEVICE_ID), entry.entry_id
+        )
+        assert registered.sw_version == "1.0"
+        assert registered.hw_version == "2.0"
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        async_fire_time_changed(hass, now + timedelta(minutes=10))
+        await hass.async_block_till_done()
+        read_info.assert_awaited_once_with()
