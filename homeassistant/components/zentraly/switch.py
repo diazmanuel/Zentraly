@@ -52,7 +52,7 @@ def _create_switch_entities(
     """Create switch entities supported by a Zentraly device."""
 
     entities: list[ZentralySwitch] = []
-    endpoints = device.commands.channel_endpoints
+    endpoints = device.channel_endpoints
     for endpoint in endpoints:
         switch_api = ZentralySwitchApi(device, endpoint=endpoint)
         entities.extend(

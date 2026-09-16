@@ -55,7 +55,7 @@ def _create_number_entities(
     """Create number entities supported by a Zentraly device."""
 
     entities: list[ZentralyNumber] = []
-    endpoints = device.commands.channel_endpoints
+    endpoints = device.channel_endpoints
     for endpoint in endpoints:
         number_api = ZentralyNumberApi(device, endpoint=endpoint)
         entities.extend(

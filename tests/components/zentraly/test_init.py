@@ -9,10 +9,11 @@ from zentraly import (
     ZentralyApi,
     ZentralyAuthenticationError,
     ZentralyConnectionError,
+    ZentralyDeviceInfo,
 )
 from zentraly.connection import ZentralyConnection
 
-from homeassistant.components.zentraly import create_device
+from homeassistant.components.zentraly import _async_refresh_device_info, create_device
 from homeassistant.components.zentraly.const import DOMAIN
 from homeassistant.components.zentraly.platforms import get_device_platforms
 from homeassistant.config_entries import ConfigEntryState
@@ -700,3 +701,41 @@ async def test_unload_parent_with_child(
     }
 
     mock_disconnect.assert_awaited_once()
+
+
+async def test_refresh_device_info(
+    hass: HomeAssistant,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Update registry versions via the public API and retain last known values."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    api = MagicMock(spec=ZentralyApi)
+    api.connected = True
+    api.host = HOST
+    api.port = PORT
+    device = create_device(api, PARENT_DEVICE_ID, PARENT_MAC)
+    registered = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id, **device.device_info
+    )
+    with patch.object(
+        type(device),
+        "async_get_device_info",
+        side_effect=[
+            ZentralyDeviceInfo("1.0", "2.0"),
+            ZentralyDeviceInfo(hardware_version="2.1"),
+            ZentralyDeviceInfo(),
+        ],
+    ) as read_info:
+        await _async_refresh_device_info(device, device_registry, registered.id)
+        assert device_registry.async_get(registered.id).sw_version == "1.0"
+        assert device_registry.async_get(registered.id).hw_version == "2.0"
+        await _async_refresh_device_info(device, device_registry, registered.id)
+        assert device_registry.async_get(registered.id).sw_version == "1.0"
+        assert device_registry.async_get(registered.id).hw_version == "2.1"
+        with patch.object(device_registry, "async_update_device") as update:
+            await _async_refresh_device_info(device, device_registry, registered.id)
+            api.connected = False
+            await _async_refresh_device_info(device, device_registry, registered.id)
+        update.assert_not_called()
+        assert read_info.await_count == 3
