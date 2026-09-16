@@ -4,14 +4,8 @@ from contextlib import AbstractContextManager, nullcontext
 from unittest.mock import MagicMock, patch
 
 import pytest
+from zentraly import SelectCapability, SelectOperationMode, ZentralySelectApi
 
-from homeassistant.components.zentraly.device_classes.select.api import (
-    ZentralySelectApi,
-)
-from homeassistant.components.zentraly.device_classes.select.capabilities import (
-    SelectCapability,
-)
-from homeassistant.components.zentraly.device_classes.types import SelectOperationMode
 from homeassistant.components.zentraly.select import ZentralySelect
 from homeassistant.exceptions import HomeAssistantError
 

@@ -2,6 +2,13 @@
 
 from typing import override
 
+from zentraly import (
+    ButtonCapability,
+    ZentralyApiError,
+    ZentralyButtonApi,
+    ZentralyConnectionError,
+)
+
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
@@ -9,9 +16,6 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .actions import translate_action_errors
-from .device_classes.button.api import ZentralyButtonApi
-from .device_classes.button.capabilities import ButtonCapability
-from .exceptions import ZentralyApiError, ZentralyConnectionError
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0

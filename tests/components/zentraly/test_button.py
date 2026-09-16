@@ -3,14 +3,9 @@
 from unittest.mock import MagicMock
 
 import pytest
+from zentraly import ButtonCapability, ZentralyButtonApi
 
 from homeassistant.components.zentraly.button import ZentralyButton
-from homeassistant.components.zentraly.device_classes.button.api import (
-    ZentralyButtonApi,
-)
-from homeassistant.components.zentraly.device_classes.button.capabilities import (
-    ButtonCapability,
-)
 from homeassistant.exceptions import HomeAssistantError
 
 

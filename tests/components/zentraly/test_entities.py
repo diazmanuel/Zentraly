@@ -5,15 +5,14 @@ import logging
 from unittest.mock import patch
 
 import pytest
+from zentraly import ZentralyApi, ZentralyOutputType
 
 from homeassistant.components.zentraly import create_device
-from homeassistant.components.zentraly.api import ZentralyApi
 from homeassistant.components.zentraly.binary_sensor import (
     _create_binary_sensor_entities,
 )
 from homeassistant.components.zentraly.button import _create_button_entities
 from homeassistant.components.zentraly.climate import ZentralyClimate
-from homeassistant.components.zentraly.device_classes.types import ZentralyOutputType
 from homeassistant.components.zentraly.models import ZentralyDevice
 from homeassistant.components.zentraly.number import _create_number_entities
 from homeassistant.components.zentraly.select import _create_select_entities

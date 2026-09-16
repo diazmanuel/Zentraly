@@ -3,6 +3,14 @@
 from datetime import datetime
 from typing import Any, override
 
+from zentraly import (
+    SwitchCapability,
+    ZentralyApiError,
+    ZentralyConnectionError,
+    ZentralySwitchApi,
+    ZentralyValidationError,
+)
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
@@ -11,14 +19,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
 from .actions import translate_action_errors
-from .api import SCAN_INTERVAL
-from .device_classes.switch.api import ZentralySwitchApi
-from .device_classes.switch.capabilities import SwitchCapability
-from .exceptions import (
-    ZentralyApiError,
-    ZentralyConnectionError,
-    ZentralyValidationError,
-)
+from .const import SCAN_INTERVAL
 from .models import ZentralyConfigEntry, ZentralyDevice
 
 PARALLEL_UPDATES = 0

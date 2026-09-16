@@ -5,6 +5,17 @@ import logging
 from typing import Any, override
 
 import probatio
+from zentraly import (
+    DeviceModel,
+    ZentralyApi,
+    ZentralyAuthenticationError,
+    ZentralyConnectionError,
+    get_device_model,
+    get_max_child_devices,
+    is_allowed_child_device,
+    supports_child_devices,
+    supports_zeroconf_setup,
+)
 
 from homeassistant.config_entries import (
     SOURCE_REAUTH,
@@ -23,19 +34,10 @@ from homeassistant.const import (
     CONF_PORT,
 )
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
-from .api import ZentralyApi
 from .const import DOMAIN
-from .devices.device import (
-    DeviceModel,
-    get_device_model,
-    get_max_child_devices,
-    is_allowed_child_device,
-    supports_child_devices,
-    supports_zeroconf_setup,
-)
-from .exceptions import ZentralyAuthenticationError, ZentralyConnectionError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -216,6 +218,7 @@ class ZentralyConfigFlow(HAConfigFlow, domain=DOMAIN):
             password = user_input[CONF_PASSWORD]
 
             api = ZentralyApi(
+                session=async_get_clientsession(self.hass),
                 host=self.data[CONF_HOST],
                 port=self.data[CONF_PORT],
                 password=password,

@@ -4,17 +4,11 @@ from contextlib import AbstractContextManager, nullcontext
 from unittest.mock import MagicMock, patch
 
 import pytest
+from zentraly import ClimateCapability, ClimateOperationMode, ZentralyClimateApi
+from zentraly.devices.zttin import ZttinCommands
 
 from homeassistant.components.climate import PRESET_AWAY, HVACAction, HVACMode
 from homeassistant.components.zentraly.climate import ZentralyClimate
-from homeassistant.components.zentraly.device_classes.climate.api import (
-    ZentralyClimateApi,
-)
-from homeassistant.components.zentraly.device_classes.climate.capabilities import (
-    ClimateCapability,
-)
-from homeassistant.components.zentraly.device_classes.types import ClimateOperationMode
-from homeassistant.components.zentraly.devices.zttin import ZttinCommands
 from homeassistant.exceptions import HomeAssistantError
 
 

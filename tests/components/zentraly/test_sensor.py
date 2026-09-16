@@ -3,16 +3,14 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from homeassistant.components.zentraly import create_device
-from homeassistant.components.zentraly.api import ZentralyApi
-from homeassistant.components.zentraly.device_classes.sensor.api import (
+from zentraly import (
+    SensorCapability,
+    ZentralyApi,
+    ZentralyOutputType,
     ZentralySensorApi,
 )
-from homeassistant.components.zentraly.device_classes.sensor.capabilities import (
-    SensorCapability,
-)
-from homeassistant.components.zentraly.device_classes.types import ZentralyOutputType
+
+from homeassistant.components.zentraly import create_device
 from homeassistant.components.zentraly.sensor import ZentralySensor
 from homeassistant.const import UnitOfVolumeFlowRate
 

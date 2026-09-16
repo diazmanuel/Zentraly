@@ -1,1 +1,0 @@
-"""Zentraly button device class."""
