@@ -63,7 +63,6 @@ async def async_setup_entry(
     if parent_entities:
         async_add_entities(
             parent_entities,
-            True,
         )
 
     for subentry_id, child in entry.runtime_data.children.items():
@@ -76,7 +75,6 @@ async def async_setup_entry(
 
         async_add_entities(
             child_entities,
-            True,
             config_subentry_id=subentry_id,
         )
 
@@ -140,14 +138,15 @@ class ZentralySelect(SelectEntity):
             )
         )
 
+        self.async_schedule_update_ha_state(force_refresh=True)
+
     async def _async_periodic_refresh(
         self,
         now: datetime,
     ) -> None:
         """Refresh select state periodically."""
 
-        await self.async_update()
-        self.async_write_ha_state()
+        self.async_schedule_update_ha_state(force_refresh=True)
 
     @property
     @override

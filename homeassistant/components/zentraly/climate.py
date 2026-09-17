@@ -48,7 +48,6 @@ async def async_setup_entry(
     if parent_entities:
         async_add_entities(
             parent_entities,
-            True,
         )
 
     for subentry_id, child in entry.runtime_data.children.items():
@@ -61,7 +60,6 @@ async def async_setup_entry(
 
         async_add_entities(
             child_entities,
-            True,
             config_subentry_id=subentry_id,
         )
 
@@ -131,14 +129,15 @@ class ZentralyClimate(ClimateEntity):
             )
         )
 
+        self.async_schedule_update_ha_state(force_refresh=True)
+
     async def _async_periodic_refresh(
         self,
         now: datetime,
     ) -> None:
         """Refresh device state periodically as a synchronization fallback."""
 
-        await self.async_update()
-        self.async_write_ha_state()
+        self.async_schedule_update_ha_state(force_refresh=True)
 
     @property
     @override
@@ -151,8 +150,6 @@ class ZentralyClimate(ClimateEntity):
         connected: bool,
     ) -> None:
         """Handle Zentraly connection-state changes."""
-
-        self._attr_available = connected
 
         if not connected:
             self.async_write_ha_state()
@@ -248,8 +245,6 @@ class ZentralyClimate(ClimateEntity):
     async def async_update(self) -> None:
         """Update climate state from the Zentraly device."""
 
-        self._attr_available = self._device.connected
-
         if not self._device.connected:
             return
 
@@ -303,7 +298,13 @@ class ZentralyClimate(ClimateEntity):
         ]
 
         if tasks:
-            await asyncio.gather(*tasks)
+            try:
+                await asyncio.gather(*tasks)
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
 
         if current_temperature_task is not None:
             current_temperature = current_temperature_task.result()

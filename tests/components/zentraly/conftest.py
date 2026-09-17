@@ -28,16 +28,12 @@ async def transport() -> AsyncIterator[tuple[ZentralyConnection, MagicMock]]:
     session = MagicMock(spec=aiohttp.ClientSession)
     session.ws_connect = AsyncMock(return_value=websocket)
     session.close = AsyncMock()
-    connection = ZentralyConnection("192.168.1.42", 80)
-    with patch(
-        "zentraly.connection.aiohttp.ClientSession",
-        return_value=session,
-    ):
-        await connection.async_connect()
-        try:
-            yield connection, websocket
-        finally:
-            await connection.async_disconnect()
+    connection = ZentralyConnection("192.168.1.42", 80, session=session)
+    await connection.async_connect()
+    try:
+        yield connection, websocket
+    finally:
+        await connection.async_disconnect()
 
 
 @pytest.fixture

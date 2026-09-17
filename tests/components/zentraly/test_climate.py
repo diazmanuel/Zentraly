@@ -1,10 +1,16 @@
 """Tests for Zentraly thermostat modes and setpoints."""
 
+import asyncio
 from contextlib import AbstractContextManager, nullcontext
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from zentraly import ClimateCapability, ClimateOperationMode, ZentralyClimateApi
+from zentraly import (
+    ClimateCapability,
+    ClimateOperationMode,
+    ZentralyClimateApi,
+    ZentralyConnectionError,
+)
 from zentraly.devices.zttin import ZttinCommands
 
 from homeassistant.components.climate import (
@@ -14,7 +20,9 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 from homeassistant.components.zentraly.climate import ZentralyClimate
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.util import dt as dt_util
 
 
 @pytest.mark.parametrize(
@@ -183,3 +191,79 @@ async def test_exit_away_preset(
             await entity.async_set_preset_mode(PRESET_NONE)
     assert entity.preset_mode == preset
     api.async_set_operation_mode.assert_awaited_once_with(ClimateOperationMode.MANUAL)
+
+
+async def test_periodic_refresh_during_reconnect(
+    hass: HomeAssistant, platform_device: MagicMock
+) -> None:
+    """Do not start a second update while a reconnect refresh is running."""
+    api = MagicMock(spec=ZentralyClimateApi)
+    api.configuration = ZttinCommands().climate_configuration
+    api.supports.return_value = True
+    entity = ZentralyClimate(platform_device, climate_api=api)
+    entity.hass = hass
+    entity.entity_id = "climate.zentraly"
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def update() -> None:
+        started.set()
+        await release.wait()
+
+    with (
+        patch.object(entity, "async_update", side_effect=update) as refresh,
+        patch.object(entity, "_async_write_ha_state"),
+    ):
+        entity._handle_connection_state(True)
+        await started.wait()
+        try:
+            async with asyncio.timeout(1):
+                await entity._async_periodic_refresh(dt_util.utcnow())
+            refresh.assert_awaited_once_with()
+        finally:
+            release.set()
+            await hass.async_block_till_done()
+        await entity._async_periodic_refresh(dt_util.utcnow())
+        await hass.async_block_till_done()
+        assert refresh.await_count == 2
+
+
+@pytest.mark.parametrize("error", [ZentralyConnectionError, asyncio.CancelledError])
+async def test_failed_refresh_cleans_up_reads(
+    platform_device: MagicMock, error: type[BaseException]
+) -> None:
+    """Do not leave sibling reads active after failure or cancellation."""
+    api = MagicMock(spec=ZentralyClimateApi)
+    api.configuration = ZttinCommands().climate_configuration
+    api.supports.side_effect = {
+        ClimateCapability.LOCAL_TEMPERATURE,
+        ClimateCapability.TARGET_TEMPERATURE,
+    }.__contains__
+    started = asyncio.Event()
+    release = asyncio.Event()
+    cleaned_up = asyncio.Event()
+
+    async def failing_read() -> float:
+        await started.wait()
+        raise error()
+
+    async def pending_read() -> float:
+        started.set()
+        try:
+            await release.wait()
+        finally:
+            await asyncio.sleep(0)
+            cleaned_up.set()
+        return 21.0
+
+    api.async_get_current_temperature.side_effect = failing_read
+    api.async_get_target_temperature.side_effect = pending_read
+    entity = ZentralyClimate(platform_device, climate_api=api)
+    try:
+        with pytest.raises(error):
+            await entity.async_update()
+        assert cleaned_up.is_set()
+    finally:
+        release.set()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)

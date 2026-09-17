@@ -1,5 +1,7 @@
 """Tests for Zentraly sensor values and units."""
 
+from datetime import timedelta
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,6 +15,11 @@ from zentraly import (
 from homeassistant.components.zentraly import create_device
 from homeassistant.components.zentraly.sensor import ZentralySensor
 from homeassistant.const import UnitOfVolumeFlowRate
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_component import EntityComponent
+from homeassistant.util import dt as dt_util
+
+from tests.common import async_fire_time_changed
 
 
 @pytest.mark.parametrize("model", ["ZTBIN", "ZTTWZ"])
@@ -177,3 +184,27 @@ async def test_output_poll_recovers_unavailable_device() -> None:
     assert entity.available
     assert entity.native_value is None
     assert device.output_type is ZentralyOutputType.OPENTHERM
+
+
+async def test_rssi_is_report_only(hass: HomeAssistant) -> None:
+    """Do not query RSSI on setup, reconnection or a periodic interval."""
+    api = ZentralyApi("192.168.1.42", 80, "password", "ZTTWZ0100000001")
+    api._set_connected(True)
+    device = create_device(api, "ZTBIN0100000001", "bb")
+    entity = ZentralySensor(
+        device=device,
+        sensor_api=ZentralySensorApi(device),
+        capability=SensorCapability.RSSI,
+    )
+    component = EntityComponent(logging.getLogger(__name__), "sensor", hass)
+    with patch.object(entity, "async_update") as refresh:
+        await component.async_add_entities([entity])
+        await hass.async_block_till_done()
+        api._set_connected(False)
+        api._set_connected(True)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=5))
+        await hass.async_block_till_done()
+        refresh.assert_not_awaited()
+        entity._handle_state_update({SensorCapability.RSSI: -65})
+        assert entity.native_value == -65
+        await entity.async_remove()
