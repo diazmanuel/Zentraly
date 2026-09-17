@@ -87,7 +87,10 @@ def timer(hass: HomeAssistant, number_api: MagicMock) -> Generator[ZentralyNumbe
     )
     entity.hass = hass
     entity.entity_id = "number.zentraly_timer"
-    with patch.object(entity, "async_write_ha_state"):
+    with (
+        patch.object(entity, "async_write_ha_state"),
+        patch.object(entity, "_async_write_ha_state"),
+    ):
         yield entity
 
 
@@ -245,3 +248,37 @@ async def test_old_write_finishes_after_new_write(
     assert timer.native_value == 40
     assert number_api.async_set_timer.await_args_list == [call(30), call(40)]
     number_api.async_get_timer.assert_not_awaited()
+
+
+async def test_periodic_refresh_preserves_pending_timer(
+    hass: HomeAssistant,
+    timer: ZentralyNumber,
+    number_api: MagicMock,
+    schedule: MagicMock,
+) -> None:
+    """Do not replace a timer selection while its debounce is pending."""
+    await timer.async_set_native_value(30)
+    await timer._async_periodic_refresh(dt_util.utcnow())
+    await hass.async_block_till_done()
+    number_api.async_get_timer.assert_not_awaited()
+    assert timer.native_value == 30
+    await schedule.call_args.args[2](dt_util.utcnow())
+    await timer._async_periodic_refresh(dt_util.utcnow())
+    await hass.async_block_till_done()
+    number_api.async_get_timer.assert_awaited_once_with()
+    assert timer.native_value == 10
+
+
+async def test_timer_recovery_read_failure(
+    timer: ZentralyNumber,
+    number_api: MagicMock,
+    schedule: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed recovery read is handled by the Home Assistant update wrapper."""
+    number_api.async_set_timer.return_value = False
+    number_api.async_get_timer.side_effect = ZentralyConnectionError
+    await timer.async_set_native_value(30)
+    await schedule.call_args.args[2](dt_util.utcnow())
+    assert "Update for number.zentraly_timer fails" in caplog.text
+    assert timer.native_value == 30

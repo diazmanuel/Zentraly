@@ -85,7 +85,6 @@ async def async_setup_entry(
     if parent_entities:
         async_add_entities(
             parent_entities,
-            True,
         )
 
     for subentry_id, child in entry.runtime_data.children.items():
@@ -98,7 +97,6 @@ async def async_setup_entry(
 
         async_add_entities(
             child_entities,
-            True,
             config_subentry_id=subentry_id,
         )
 
@@ -193,6 +191,7 @@ class ZentralyNumber(NumberEntity):
         )
 
         self.async_on_remove(self._cancel_pending_timer_write)
+        self.async_schedule_update_ha_state(force_refresh=True)
 
     def _cancel_pending_timer_write(self) -> None:
         """Cancel a pending timer write."""
@@ -240,8 +239,7 @@ class ZentralyNumber(NumberEntity):
             self.async_write_ha_state()
             return
 
-        await self.async_update()
-        self.async_write_ha_state()
+        await self.async_update_ha_state(force_refresh=True)
 
     async def _async_periodic_refresh(
         self,
@@ -255,8 +253,7 @@ class ZentralyNumber(NumberEntity):
         ):
             return
 
-        await self.async_update()
-        self.async_write_ha_state()
+        self.async_schedule_update_ha_state(force_refresh=True)
 
     @property
     @override

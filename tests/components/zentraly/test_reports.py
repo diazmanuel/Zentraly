@@ -109,7 +109,10 @@ async def test_partial_report_updates_entity(
     component = EntityComponent(logging.getLogger(__name__), domain, hass)
     report = {"mac": "aa", "ep": 1, "cluster": cluster, "id": attribute_id, "val": raw}
     with patch.object(api, "async_execute_command") as execute:
-        await component.async_add_entities([entity])
+        with patch(
+            "homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"
+        ):
+            await component.async_add_entities([entity])
         api._handle_report(
             {"cmd": "report", "data": [None, report, {**report, "val": "invalid"}]}
         )
@@ -147,7 +150,10 @@ async def test_opentherm_report_updates_three_indicators(
     ]
     component = EntityComponent(logging.getLogger(__name__), "binary_sensor", hass)
     with patch.object(api, "async_execute_command") as execute:
-        await component.async_add_entities(entities)
+        with patch(
+            "homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"
+        ):
+            await component.async_add_entities(entities)
         api._handle_report(
             {
                 "cmd": "report",
@@ -198,7 +204,10 @@ async def test_timer_report_preserves_pending_selection(hass: HomeAssistant) -> 
         "data": [{"mac": "aa", "ep": 1, "cluster": 65006, "id": 9, "val": 601}],
     }
     with patch.object(api, "async_execute_command") as execute:
-        await component.async_add_entities([entity])
+        with patch(
+            "homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"
+        ):
+            await component.async_add_entities([entity])
         api._handle_report(report)
         assert entity.native_value == 10.0
         await entity.async_set_native_value(30)
@@ -232,7 +241,8 @@ async def test_channel_report_dispatch(hass: HomeAssistant) -> None:
     device.commands = ChannelReportCommands()
     entities = _create_switch_entities(device)
     component = EntityComponent(logging.getLogger(__name__), "switch", hass)
-    await component.async_add_entities(entities)
+    with patch("homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"):
+        await component.async_add_entities(entities)
     api._handle_report(
         {
             "cmd": "report",
@@ -258,7 +268,10 @@ async def test_climate_away_report(hass: HomeAssistant, model: str) -> None:
     entity.entity_id = "climate.zentraly_report"
     component = EntityComponent(logging.getLogger(__name__), "climate", hass)
     with patch.object(api, "async_execute_command") as execute:
-        await component.async_add_entities([entity])
+        with patch(
+            "homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"
+        ):
+            await component.async_add_entities([entity])
         api._handle_report(
             {
                 "cmd": "report",

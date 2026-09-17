@@ -116,7 +116,10 @@ async def test_number_setting_roundtrip(
         return 1, {**command, "status": 200, "attrs": [{"id": attribute, "val": raw}]}
 
     with patch.object(api, "async_execute_command", side_effect=execute):
-        await component.async_add_entities([entity])
+        with patch(
+            "homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"
+        ):
+            await component.async_add_entities([entity])
         assert entity.native_value is None
         assert entity.entity_category is EntityCategory.CONFIG
         assert (
@@ -196,7 +199,10 @@ async def test_display_setting_roundtrip(
         return 1, {**command, "status": 200, "attrs": [{"id": 102, "val": raw}]}
 
     with patch.object(api, "async_execute_command", side_effect=execute):
-        await component.async_add_entities([entity])
+        with patch(
+            "homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"
+        ):
+            await component.async_add_entities([entity])
         assert entity.current_option is None
         assert entity.options == ["temperature", "time"]
         assert entity.entity_category is EntityCategory.CONFIG
@@ -255,8 +261,10 @@ async def display_controls(
     display.entity_id = "select.display_mode"
     number_component = EntityComponent(logging.getLogger(__name__), "number", hass)
     select_component = EntityComponent(logging.getLogger(__name__), "select", hass)
-    await number_component.async_add_entities([brightness])
-    await select_component.async_add_entities([display])
+    with patch("homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"):
+        await number_component.async_add_entities([brightness])
+    with patch("homeassistant.helpers.entity.Entity.async_schedule_update_ha_state"):
+        await select_component.async_add_entities([display])
     assert not brightness.available
     assert not display.available
     assert away.available
