@@ -66,37 +66,43 @@ async def test_unload_clears_real_pending_requests(
         patch.object(hass.config_entries, "async_forward_entry_setups"),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
-    api = entry.runtime_data.api
-    api._connection = connection
-    api._set_connected(True)
-    api._keepalive_task = asyncio.create_task(api._async_keepalive_loop())
-    keepalive = api._keepalive_task
-    tasks = [
-        asyncio.create_task(
-            connection.async_send_command(
-                lambda rid: {"cmd": "readAttr", "rid": rid, "mac": PARENT_MAC}
+    with patch(
+        "homeassistant.components.zentraly.models.ZentralyDevice.async_get_device_info",
+        return_value=ZentralyDeviceInfo(),
+    ):
+        api = entry.runtime_data.api
+        api._connection = connection
+        api._set_connected(True)
+        api._keepalive_task = asyncio.create_task(api._async_keepalive_loop())
+        keepalive = api._keepalive_task
+        tasks = [
+            asyncio.create_task(
+                connection.async_send_command(
+                    lambda rid: {"cmd": "readAttr", "rid": rid, "mac": PARENT_MAC}
+                )
             )
-        )
-        for _ in range(25)
-    ]
-    for _ in range(6):
-        await asyncio.sleep(0)
-    assert len(connection._pending_requests) == 20
-    assert connection._waiting == 5
-    with patch.object(hass.config_entries, "async_unload_platforms", return_value=True):
-        assert await hass.config_entries.async_unload(entry.entry_id)
-    assert await asyncio.gather(*tasks) == [(rid, None) for rid in range(1, 26)]
-    assert not connection.connected
-    assert connection._requests == {}
-    assert connection._pending_requests == {}
-    assert connection._waiting == 0
-    assert connection._send_queue.empty()
-    assert connection._sender_task is None
-    assert connection._receiver_task is None
-    assert api._keepalive_task is None
-    assert keepalive.cancelled()
-    assert not api._authentication_error_listeners
-    websocket.close.assert_awaited_once()
+            for _ in range(25)
+        ]
+        for _ in range(6):
+            await asyncio.sleep(0)
+        assert len(connection._pending_requests) == 20
+        assert connection._waiting == 5
+        with patch.object(
+            hass.config_entries, "async_unload_platforms", return_value=True
+        ):
+            assert await hass.config_entries.async_unload(entry.entry_id)
+        assert await asyncio.gather(*tasks) == [(rid, None) for rid in range(1, 26)]
+        assert not connection.connected
+        assert connection._requests == {}
+        assert connection._pending_requests == {}
+        assert connection._waiting == 0
+        assert connection._send_queue.empty()
+        assert connection._sender_task is None
+        assert connection._receiver_task is None
+        assert api._keepalive_task is None
+        assert keepalive.cancelled()
+        assert not api._authentication_error_listeners
+        websocket.close.assert_awaited_once()
 
 
 SUBENTRY_TYPE_DEVICE = "device"
@@ -714,6 +720,7 @@ async def test_refresh_device_info(
     entry = _parent_entry()
     entry.add_to_hass(hass)
     api = MagicMock(spec=ZentralyApi)
+    api.async_execute_command.return_value = (1, {"status": 0})
     api.connected = True
     api.host = HOST
     api.port = PORT
@@ -751,6 +758,7 @@ async def test_device_info_periodic_refresh(
     entry = _parent_entry()
     entry.add_to_hass(hass)
     api = MagicMock(spec=ZentralyApi)
+    api.async_execute_command.return_value = (1, {"status": 0})
     api.connected = True
     api.device_id = PARENT_DEVICE_ID
     api.host = HOST
@@ -765,6 +773,9 @@ async def test_device_info_periodic_refresh(
         ) as read_info,
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        read_info.assert_awaited_once_with()
+        read_info.reset_mock()
         now = dt_util.utcnow()
         async_fire_time_changed(hass, now + timedelta(minutes=5))
         await hass.async_block_till_done()
@@ -793,12 +804,13 @@ async def test_device_info_periodic_refresh(
             ZentralyDeviceInfo(hardware_version="2.1"), "1.0", "2.1", id="hardware-only"
         ),
         pytest.param(ZentralyDeviceInfo(), "1.0", "2.0", id="no-readings"),
+        pytest.param(ZentralyConnectionError(), "1.0", "2.0", id="read-error"),
     ],
 )
 async def test_partial_device_info_after_restart(
     hass: HomeAssistant,
     device_registry: dr.DeviceRegistry,
-    info: ZentralyDeviceInfo,
+    info: ZentralyDeviceInfo | ZentralyConnectionError,
     firmware: str,
     hardware: str,
 ) -> None:
@@ -806,6 +818,7 @@ async def test_partial_device_info_after_restart(
     entry = _parent_entry()
     entry.add_to_hass(hass)
     api = MagicMock(spec=ZentralyApi)
+    api.async_execute_command.return_value = (1, {"status": 0})
     api.connected = True
     api.host = HOST
     api.port = PORT
@@ -818,7 +831,7 @@ async def test_partial_device_info_after_restart(
     )
     assert device.firmware_version is None
     assert device.hardware_version is None
-    with patch.object(type(device), "async_get_device_info", return_value=info):
+    with patch.object(type(device), "async_get_device_info", side_effect=[info]):
         await _async_refresh_device_info(device, device_registry, registered.id)
     updated = device_registry.async_get(registered.id)
     assert updated.sw_version == firmware
@@ -837,6 +850,7 @@ async def test_climate_periodic_refresh_lifecycle(
     entry = _parent_entry()
     entry.add_to_hass(hass)
     api = MagicMock(spec=ZentralyApi)
+    api.async_execute_command.return_value = (1, {"status": 0})
     api.device_id = PARENT_DEVICE_ID
     api.host = HOST
     api.port = PORT
@@ -907,3 +921,49 @@ async def test_setup_failure_disconnects(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
         assert entry.state is ConfigEntryState.SETUP_ERROR
         disconnect.assert_awaited_once_with()
+
+
+async def test_device_info_connection_and_unload(hass: HomeAssistant) -> None:
+    """Deduplicate reconnect reads and cancel pending metadata on unload."""
+    entry = _parent_entry()
+    entry.add_to_hass(hass)
+    api = MagicMock(spec=ZentralyApi)
+    api.connected = False
+    api.device_id = PARENT_DEVICE_ID
+    api.host = HOST
+    api.port = PORT
+    api.async_validate_password.return_value = PARENT_MAC
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def read() -> ZentralyDeviceInfo:
+        started.set()
+        try:
+            await asyncio.Future()
+        finally:
+            cancelled.set()
+        return ZentralyDeviceInfo()
+
+    with (
+        patch("homeassistant.components.zentraly.ZentralyApi", return_value=api),
+        patch.object(hass.config_entries, "async_forward_entry_setups"),
+        patch(
+            "homeassistant.components.zentraly.models.ZentralyDevice.async_get_device_info",
+            side_effect=read,
+        ) as read_info,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        read_info.assert_not_awaited()
+        listener = api.add_connection_state_listener.call_args.args[0]
+        listener(False)
+        read_info.assert_not_awaited()
+        api.connected = True
+        listener(True)
+        await started.wait()
+        listener(True)
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(hours=24))
+        await hass.async_block_till_done()
+        read_info.assert_awaited_once_with()
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert cancelled.is_set()
+        api.add_connection_state_listener.return_value.assert_called_once_with()
