@@ -1,7 +1,7 @@
 {
   "config": {
     "abort": {
-      "already_configured": "This device is already configured.",
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
       "child_added": "The Zentraly child device was added successfully.",
       "entry_not_loaded": "The parent Zentraly device is not currently loaded.",
       "max_children": "This Zentraly device has reached the maximum number of child devices.",
@@ -9,15 +9,15 @@
       "no_parents_configured": "No Zentraly parent devices are configured.",
       "parent_unavailable": "The selected parent is no longer available. Start again and select an available parent.",
       "reauth_successful": "Reauthentication was successful.",
-      "unsupported_device": "This Zentraly device is not supported for automatic setup.",
+      "unsupported_device": "This Zentraly device is not supported.",
       "unsupported_parent": "This Zentraly device does not support child devices.",
       "wrong_device": "The device does not match the configured Zentraly device.",
       "zeroconf_only": "Zentraly devices can only be added after being discovered on the local network."
     },
     "error": {
       "already_configured": "[%key:component::zentraly::config_subentries::device::error::already_configured%]",
-      "cannot_connect": "Unable to connect to the device.",
-      "invalid_auth": "Invalid password.",
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
       "invalid_device": "[%key:component::zentraly::config_subentries::device::error::invalid_device%]",
       "invalid_mac": "[%key:component::zentraly::config_subentries::device::error::invalid_mac%]",
       "parent_unavailable": "The selected parent is no longer available. Select another parent.",
@@ -29,7 +29,7 @@
     "step": {
       "auth": {
         "data": {
-          "password": "Password"
+          "password": "[%key:common::config_flow::data::password%]"
         },
         "data_description": {
           "password": "The password configured on the Zentraly device."
@@ -57,7 +57,7 @@
           "parent": "The Zentraly device through which the child communicates."
         },
         "description": "Select the parent device. Only configured devices that are loaded and have capacity for a supported child are listed.",
-        "title": "Add a Zentraly device as a child of…"
+        "title": "Add a Zentraly device as a child of\u2026"
       }
     }
   },
@@ -309,7 +309,7 @@
       "message": "The device at {host} does not match the configured Zentraly device."
     },
     "unsupported_model": {
-      "message": "The Zentraly device model {device_id} is not supported."
+      "message": "The Zentraly device with ID {device_id} is not supported."
     }
   }
 }

@@ -4,13 +4,7 @@ import asyncio
 from datetime import datetime
 from typing import Any, override
 
-from zentraly import (
-    ClimateCapability,
-    ClimateOperationMode,
-    ZentralyApiError,
-    ZentralyClimateApi,
-    ZentralyValidationError,
-)
+from zentraly import ClimateCapability, ClimateOperationMode, ZentralyClimateApi
 
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
@@ -23,15 +17,16 @@ from homeassistant.components.climate import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
 from .actions import translate_action_errors
-from .const import SCAN_INTERVAL
+from .const import DOMAIN, SCAN_INTERVAL
 from .models import ZentralyConfigEntry, ZentralyDevice
 
-PARALLEL_UPDATES = 0
+PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(
@@ -407,20 +402,22 @@ class ZentralyClimate(ClimateEntity):
     ) -> None:
         """Set new target temperature."""
 
-        temperature = kwargs.get(ATTR_TEMPERATURE)
+        hvac_mode = kwargs.get(ATTR_HVAC_MODE)
+        if hvac_mode is not None and hvac_mode not in self.hvac_modes:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="invalid_action"
+            )
 
-        if not isinstance(temperature, int | float):
-            raise ZentralyValidationError("Unsupported action value")
-
-        if not self._climate_api.supports(ClimateCapability.TARGET_TEMPERATURE):
-            raise ZentralyValidationError("Unsupported action value")
+        temperature = kwargs[ATTR_TEMPERATURE]
 
         success = await self._climate_api.async_set_target_temperature(
             float(temperature)
         )
 
         if not success:
-            raise ZentralyApiError("Action failed")
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="action_failed"
+            )
 
         self._normal_target_temperature = float(temperature)
 
@@ -435,7 +432,7 @@ class ZentralyClimate(ClimateEntity):
 
         self.async_write_ha_state()
 
-        if (hvac_mode := kwargs.get(ATTR_HVAC_MODE)) is not None:
+        if hvac_mode is not None:
             # Writing a setpoint selects manual mode on the thermostat.
             await self.async_set_hvac_mode(hvac_mode)
 
@@ -447,9 +444,6 @@ class ZentralyClimate(ClimateEntity):
     ) -> None:
         """Set new HVAC mode."""
 
-        if not self._climate_api.supports(ClimateCapability.OPERATION_MODE):
-            raise ZentralyValidationError("Unsupported action value")
-
         if hvac_mode is HVACMode.OFF:
             operation_mode = ClimateOperationMode.OFF
 
@@ -460,12 +454,16 @@ class ZentralyClimate(ClimateEntity):
             operation_mode = ClimateOperationMode.AUTO
 
         else:
-            raise ZentralyValidationError("Unsupported action")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="invalid_action"
+            )
 
         success = await self._climate_api.async_set_operation_mode(operation_mode)
 
         if not success:
-            raise ZentralyApiError("Action failed")
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="action_failed"
+            )
 
         self._apply_operation_mode(operation_mode)
         self._update_target_temperature()
@@ -481,9 +479,6 @@ class ZentralyClimate(ClimateEntity):
     ) -> None:
         """Set new preset mode."""
 
-        if not self._climate_api.supports(ClimateCapability.OPERATION_MODE):
-            raise ZentralyValidationError("Unsupported action value")
-
         if preset_mode == PRESET_AWAY:
             operation_mode = ClimateOperationMode.AWAY
 
@@ -491,12 +486,16 @@ class ZentralyClimate(ClimateEntity):
             operation_mode = ClimateOperationMode.MANUAL
 
         else:
-            raise ZentralyValidationError("Unsupported action")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="invalid_action"
+            )
 
         success = await self._climate_api.async_set_operation_mode(operation_mode)
 
         if not success:
-            raise ZentralyApiError("Action failed")
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="action_failed"
+            )
 
         self._apply_operation_mode(operation_mode)
         self._update_target_temperature()
