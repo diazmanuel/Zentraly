@@ -1,7 +1,7 @@
 """Switch platform for Zentraly."""
 
 from datetime import datetime
-from typing import Any, override
+from typing import Any, assert_never, override
 
 from zentraly import (
     SwitchCapability,
@@ -273,7 +273,7 @@ class ZentralySwitch(SwitchEntity):
             value = await self._switch_api.async_get_high_power_protection()
 
         else:
-            return
+            assert_never(self._capability)
 
         self._attr_is_on = value
 
