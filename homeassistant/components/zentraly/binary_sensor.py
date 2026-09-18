@@ -1,7 +1,7 @@
 """Binary sensor platform for Zentraly."""
 
 from datetime import datetime
-from typing import Any, override
+from typing import Any, assert_never, override
 
 from zentraly import BinarySensorCapability, ZentralyBinarySensorApi
 
@@ -222,7 +222,7 @@ class ZentralyBinarySensor(BinarySensorEntity):
             value = await self._binary_sensor_api.async_get_ot_winter_mode()
 
         else:
-            return
+            assert_never(self._capability)
 
         self._attr_is_on = value
 

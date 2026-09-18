@@ -1,7 +1,7 @@
 """Select platform for Zentraly."""
 
 from datetime import datetime
-from typing import Any, override
+from typing import Any, assert_never, override
 
 from zentraly import (
     DisplayMode,
@@ -212,7 +212,7 @@ class ZentralySelect(SelectEntity):
         elif self._capability is SelectCapability.OPERATION_MODE:
             value = await self._select_api.async_get_operation_mode()
         else:
-            return
+            assert_never(self._capability)
 
         if value is None:
             self._attr_current_option = None

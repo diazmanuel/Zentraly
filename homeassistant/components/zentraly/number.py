@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import logging
-from typing import Any, override
+from typing import Any, assert_never, override
 
 from zentraly import (
     NumberCapability,
@@ -352,7 +352,7 @@ class ZentralyNumber(NumberEntity):
             value = await self._number_api.async_get_high_power_limit()
 
         else:
-            return
+            assert_never(self._capability)
 
         self._attr_native_value = value
 
